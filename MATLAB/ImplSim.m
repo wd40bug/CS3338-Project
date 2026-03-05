@@ -24,7 +24,7 @@ FilterOrder = 4;
 WindowSize = round(nsamp / 10);
 AnalyticalSignalOrder = 100;
 EnvelopeThreshold = 0.50;
-SilentFramesGracePeriod = 20;
+SilentFramesGracePeriod = 5;
 
 
 %% Signal Creation
@@ -157,6 +157,8 @@ indicies = [];
 index_of_envelope_abs = 0;
 start_bits = [];
 reads = [];
+diff_powers = [];
+diff_means = [];
 
 while ~isDone(reader)
     frame = reader();
@@ -169,15 +171,20 @@ while ~isDone(reader)
     spaceMag = abs(envSpace(spaceFiltered));
 
     diff = markMag - spaceMag;
-    envPower = mean(abs(diff).^2);
+    diffPower = mean(diff.^2);
+
+    diff_powers = [diff_powers, diffPower];
+    diff_means = [diff_means, mean(diff)];
+    indicies = [indicies, frame_index];
 
     % Squelch
-    if envPower <= EnvelopeThreshold
+    if abs(mean(diff)) <= EnvelopeThreshold
         if silent_frames < SilentFramesGracePeriod
             silent_frames = silent_frames + 1;
         else
             % Reset state machine
             state = DecodeState.Idle;
+            protocolState = ProtocolState.Length;
             fprintf("Lost signal at %d\n", frame_index);
         end
         continue;
@@ -238,21 +245,20 @@ ylabel("Amplitude")
 xlabel("Index")
 % With Threshold
 figure;
-plot(diff);
-title("Difference envelope (Mark - Space) with threshold lines")
+plot(indicies, diff_means, '--o');
+title("Difference envelope (Mark - Space) frame means with threshold lines")
 ylabel("Amplitude")
 xlabel("Index")
-yline(EnvelopeThreshold);
-yline(-EnvelopeThreshold);
-xline(index_of_envelope_abs);
+yline([EnvelopeThreshold, -EnvelopeThreshold], 'black', 'Threshold', 'LineWidth',2);
+xline(index_of_envelope_abs, 'r', 'Signal detected', 'LineWidth', 2, 'LabelVerticalAlignment','bottom');
 % With Data lines
 figure;
 plot(diff);
 title("Difference envelope (Mark - Space) with data lines")
 ylabel("Amplitude")
 xlabel("Index")
-xline(start_bits, 'r', "Start bit");
-xline(reads, 'b', "Data bit");
+xline(start_bits, 'r', "Start bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
+xline(reads, 'b', "Data bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
 
 %% Decode
 function decodedText = decodeBaudot(bits, forceState)
