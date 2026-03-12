@@ -1,4 +1,4 @@
-clear, clc, close all, clear Baudot
+clear, clc, close all, clear Baudot, clear decodeBaudot
 
 % Consts
 Fs = 8000;
@@ -17,7 +17,7 @@ FilterBW = Baud * 1.2;
 FilterOrder = 4;
 WindowSize = round(nsamp / 10);
 AnalyticalSignalOrder = 100;
-EnvelopeThreshold = 0.50;
+EnvelopeThreshold = 0.10;
 SilentFramesGracePeriod = 20;
 
 reader = audioDeviceReader(Fs, WindowSize);
@@ -66,6 +66,8 @@ first_frame_over_thresh = 0;
 start_indicies = [];
 data_indicies = [];
 
+decodeBaudot([], 'FIGS');
+% while length(chars) < 14 && (silent_frames < SilentFramesGracePeriod || first_frame_over_thresh == 0)
 while protocolState ~= ProtocolState.Done
     frame = reader();
     allAudioData = [allAudioData; frame];
@@ -81,12 +83,14 @@ while protocolState ~= ProtocolState.Done
     envPower = mean(abs(diff).^2);
 
     % Squelch
-    if envPower <= EnvelopeThreshold
+    if abs(mean(diff)) <= EnvelopeThreshold
         if silent_frames < SilentFramesGracePeriod
             silent_frames = silent_frames + 1;
         else
             % Reset state machine
             state = DecodeState.Idle;
+            protocolState = ProtocolState.Length;
+            fprintf("Lost signal at %d\n", frame_index);
         end
         continue;
     else
@@ -117,16 +121,13 @@ while protocolState ~= ProtocolState.Done
                     if currentBits <= 5
                         continue;
                     end
-                    if protocolState == ProtocolState.Length && charIndex == 1
-                        c = decodeBaudot(bits, 'FIGS');
-                    else
-                        c = decodeBaudot(bits);
-                    end
+                    c = decodeBaudot(bits);
                     state = DecodeState.Stop;
                     if isempty(c)
                         continue;
                     end
                     fprintf("%s", c);
+                    % chars = [chars, c];
                     switch protocolState
                         case ProtocolState.Length
                             isDigit = (c >= '0' && c <= '9');
@@ -273,7 +274,11 @@ function decodedText = decodeBaudot(bits, forceState)
 end
 
 %% Figures
-first_index = start_indicies(1) - 100;
+if ~isempty(start_indicies)
+    first_index = start_indicies(1) - 1000;
+else
+    first_index = first_frame_over_thresh;
+end
 signal = allAudioData(first_index:end);
 reset(bpMark);
 reset(bpSpace);

@@ -228,6 +228,23 @@ while ~isDone(reader)
 
 end
 %% Plot stuff
+% Plot frequency response
+figure;
+subplot(2,1,1);
+[H, f] = freqz(bpMark, 1024, Fs);
+plot(f, 20*log10(abs(H)));
+title("Frequency Response of Mark Filter");
+xline(Mark, '--r', "Mark", 'LineWidth',2);
+xlabel("Frequency(Hz)");
+ylabel("Gain (dB)");
+subplot(2,1,2);
+[H, f] = freqz(bpSpace, 1024, Fs);
+plot(f, 20*log10(abs(H)));
+title("Frequency Response of Space Filter");
+xline(Space, '--r', "Space", 'LineWidth',2);
+xlabel("Frequency(Hz)");
+ylabel("Gain (dB)");
+% Setup
 reset(bpMark);
 reset(bpSpace);
 reset(envMark);
@@ -235,10 +252,23 @@ reset(envSpace);
 release(envMark);
 release(envSpace);
 mark_env = abs(envMark(bpMark(signal)));
-space_env = abs(envMark(bpSpace(signal)));
+space_env = abs(envSpace(bpSpace(signal)));
 diff = mark_env - space_env;
 % Plot envelope
 figure;
+subplot(3,1,1)
+plot(mark_env);
+title("Mark envelope");
+ylabel("Amplitude");
+xlabel("Index");
+ylim([-2,2]);
+subplot(3,1,2)
+plot(space_env);
+title("Space envelope");
+ylabel("Amplitude");
+xlabel("Index");
+ylim([-2,2]);
+subplot(3,1,3);
 plot(diff);
 title("Difference envelope (Mark - Space)")
 ylabel("Amplitude")
@@ -260,6 +290,10 @@ xlabel("Index")
 xline(start_bits, 'r', "Start bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
 xline(reads, 'b', "Data bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
 
+% STFT
+figure;
+stft(signal, Fs, 'Window', kaiser(256, 5), 'OverlapLength', 220, 'FFTLength', 512);
+ylim([2 2.5])
 %% Decode
 function decodedText = decodeBaudot(bits, forceState)
     % DECODEBAUDOT Converts a list of bits into Baudot (ITA2) characters.
