@@ -90,7 +90,6 @@ while protocolState ~= ProtocolState.Done
             % Reset state machine
             state = DecodeState.Idle;
             protocolState = ProtocolState.Length;
-            fprintf("Lost signal at %d\n", frame_index);
         end
         continue;
     else
