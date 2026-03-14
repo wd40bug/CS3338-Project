@@ -17,15 +17,8 @@ const char* pass = "RTTYROX";
 
 const char* CallSign = "KJ5OEH";
 
-
-const int SquareWaveOut = 15;
-const int Transmit = 4;
-
 const int NumBitsPerChar = 5;
-const int Mark = 2125;
-const int Shift = 170;
-const double Baud = 45.45;
-const int BitDuration = round(1000.0 / Baud);
+
 
 WiFiServer server(80);
 
@@ -41,34 +34,76 @@ const int D7pin = 32;
 LiquidCrystal lcd(RSpin,Epin,D4pin,D5pin,D6pin,D7pin);
 BAUDOT Baudot;
 
-void sendBit(bool bit){
-  tone(SquareWaveOut, bit ? 2125 : 2295);
-  delay(BitDuration);
-}
-
-
-void sendChar(uint8_t code){
-  sendBit(0);
-  for (int i = NumBitsPerChar - 1; i >= 0; i--){
-    sendBit(code & (1 << i));
+class Transmitter{
+  enum class LastBitState {None = 3, Zero = 0, One = 1};
+  LastBitState last_bit = LastBitState::None;
+  
+  void sendBit(bool bit, int duration){
+    if (bit != static_cast<int>(last_bit)){
+      tone(SquareWaveOut, bit ? Mark : Space);
+    }
+    delay(duration);
+    last_bit = static_cast<LastBitState>(bit);
   }
-  sendBit(1);
-}
+  
+  void sendBit(bool bit){
+    sendBit(bit, BitDuration);
+  }
+
+  void sendStop(){
+    sendStop(1);
+  }
+
+  void sendStop(int times){
+    sendBit(1, BitDuration * StopDuration * times);
+  }
+  public:
+  Transmitter(){};
+  static const int SquareWaveOut = 15;
+  static const int Transmit = 4;
+  static const int Mark = 2125;
+  static const int Shift = 170;
+  static const int Space = Mark + Shift;
+  static constexpr double Baud = 45.45;
+  static const int BitDuration = round(1000.0 / Baud);
+  static constexpr float StopDuration = 1.5;
+  void begin(){
+    digitalWrite(Transmit, HIGH);
+    pinMode(Transmit, OUTPUT);
+    pinMode(SquareWaveOut, OUTPUT);
+  }
+  void start(){
+    digitalWrite(Transmit, LOW);
+    sendStop(40);
+  }
+  void send_char(int code){
+    sendBit(0);
+    for (int i = NumBitsPerChar - 1; i >= 0; i--){
+      sendBit(code & (1 << i));
+    }
+    sendStop();
+  }
+  void stop(){
+    noTone(SquareWaveOut);
+    digitalWrite(SquareWaveOut, LOW);
+    digitalWrite(Transmit, HIGH);
+    last_bit = LastBitState::None;
+  }
+};
+
+Transmitter trans;
 
 void setup() {
   Serial.begin(115200);
   
-  pinMode(15, OUTPUT);
-  pinMode(Transmit, OUTPUT);
-  pinMode(SquareWaveOut, OUTPUT);
-  digitalWrite(15, LOW);
-
+  trans.begin();
+  
   WiFi.softAP(ssid, pass);
 
   IPAddress IP = WiFi.softAPIP();
   Serial.print("IP address: ");
   Serial.print(IP);
-
+  
   server.begin();
 
   lcd.begin(16, 2);
@@ -77,7 +112,6 @@ void setup() {
 String sent_text = "";
 
 void loop() {
-  
   WiFiClient client = server.accept();
   
   if(client){
@@ -140,7 +174,7 @@ void loop() {
               CRC16 crc;
               crc.restart();
               
-              if(content.length() <= 16){
+              if(content.length() < 16){
                   msg += "0";
                 }
                 
@@ -156,7 +190,6 @@ void loop() {
               
               int arrnum = 0;
 
-              //std::vector<int> encodedmsg;
               for(int i = 0; i < msg.length(); i++){
                 if(Baudot.isLetter(msg[i])){
                   if(Baudot.getMode() == 0) {
@@ -230,6 +263,9 @@ void loop() {
               else if(checkstr.length() == 3){
                 checkstr = "0" + checkstr;
               }
+              else if(checkstr.length() == 1){
+                checkstr = "000" + checkstr;
+              }
 
               checkstr += CallSign;
               
@@ -259,16 +295,12 @@ void loop() {
 
               sent_text = sent_text + "Sending: " + content + "<br>Full Message: " + msg + "<br>";
 
-              digitalWrite(Transmit, LOW);
-              delay(10);
+              trans.start();
               for(int i = 0; i < arrnum + 17; i++){
                 //send_data(EncodedMsg[i]);
-                sendChar(EncodedMsg[i]);
+                trans.send_char(EncodedMsg[i]);
               }
-              
-              //digitalWrite(Transmit, HIGH);
-              noTone(SquareWaveOut);
-              digitalWrite(SquareWaveOut, LOW);
+              trans.stop();
               lcd.clear();
               lcd.setCursor(0,0);
               lcd.print(msg);
