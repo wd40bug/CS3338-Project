@@ -17,7 +17,7 @@ FilterBW = Baud * 1.2;
 FilterOrder = 4;
 WindowSize = round(nsamp / 10);
 AnalyticalSignalOrder = 100;
-EnvelopeThreshold = 0.10;
+EnvelopeThreshold = 0.20;
 SilentFramesGracePeriod = 20;
 
 reader = audioDeviceReader(Fs, WindowSize);
@@ -274,7 +274,7 @@ end
 
 %% Figures
 if ~isempty(start_indicies)
-    first_index = start_indicies(1) - 1000;
+    first_index = max(start_indicies(1) - 1000, 1);
 else
     first_index = first_frame_over_thresh;
 end
