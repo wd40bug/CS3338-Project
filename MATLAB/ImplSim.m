@@ -24,7 +24,7 @@ FilterOrder = 4;
 WindowSize = round(nsamp / 10);
 AnalyticalSignalOrder = 100;
 EnvelopeThreshold = 0.50;
-SilentFramesGracePeriod = 20;
+SilentFramesGracePeriod = 5;
 
 
 %% Signal Creation
@@ -157,6 +157,8 @@ indicies = [];
 index_of_envelope_abs = 0;
 start_bits = [];
 reads = [];
+diff_powers = [];
+diff_means = [];
 
 while ~isDone(reader)
     frame = reader();
@@ -169,15 +171,20 @@ while ~isDone(reader)
     spaceMag = abs(envSpace(spaceFiltered));
 
     diff = markMag - spaceMag;
-    envPower = mean(abs(diff).^2);
+    diffPower = mean(diff.^2);
+
+    diff_powers = [diff_powers, diffPower];
+    diff_means = [diff_means, mean(diff)];
+    indicies = [indicies, frame_index];
 
     % Squelch
-    if envPower <= EnvelopeThreshold
+    if abs(mean(diff)) <= EnvelopeThreshold
         if silent_frames < SilentFramesGracePeriod
             silent_frames = silent_frames + 1;
         else
             % Reset state machine
             state = DecodeState.Idle;
+            protocolState = ProtocolState.Length;
             fprintf("Lost signal at %d\n", frame_index);
         end
         continue;
@@ -221,6 +228,23 @@ while ~isDone(reader)
 
 end
 %% Plot stuff
+% Plot frequency response
+figure;
+subplot(2,1,1);
+[H, f] = freqz(bpMark, 1024, Fs);
+plot(f, 20*log10(abs(H)));
+title("Frequency Response of Mark Filter");
+xline(Mark, '--r', "Mark", 'LineWidth',2);
+xlabel("Frequency(Hz)");
+ylabel("Gain (dB)");
+subplot(2,1,2);
+[H, f] = freqz(bpSpace, 1024, Fs);
+plot(f, 20*log10(abs(H)));
+title("Frequency Response of Space Filter");
+xline(Space, '--r', "Space", 'LineWidth',2);
+xlabel("Frequency(Hz)");
+ylabel("Gain (dB)");
+% Setup
 reset(bpMark);
 reset(bpSpace);
 reset(envMark);
@@ -228,32 +252,48 @@ reset(envSpace);
 release(envMark);
 release(envSpace);
 mark_env = abs(envMark(bpMark(signal)));
-space_env = abs(envMark(bpSpace(signal)));
+space_env = abs(envSpace(bpSpace(signal)));
 diff = mark_env - space_env;
 % Plot envelope
 figure;
+subplot(3,1,1)
+plot(mark_env);
+title("Mark envelope");
+ylabel("Amplitude");
+xlabel("Index");
+ylim([-2,2]);
+subplot(3,1,2)
+plot(space_env);
+title("Space envelope");
+ylabel("Amplitude");
+xlabel("Index");
+ylim([-2,2]);
+subplot(3,1,3);
 plot(diff);
 title("Difference envelope (Mark - Space)")
 ylabel("Amplitude")
 xlabel("Index")
 % With Threshold
 figure;
-plot(diff);
-title("Difference envelope (Mark - Space) with threshold lines")
+plot(indicies, diff_means, '--o');
+title("Difference envelope (Mark - Space) frame means with threshold lines")
 ylabel("Amplitude")
 xlabel("Index")
-yline(EnvelopeThreshold);
-yline(-EnvelopeThreshold);
-xline(index_of_envelope_abs);
+yline([EnvelopeThreshold, -EnvelopeThreshold], 'black', 'Threshold', 'LineWidth',2);
+xline(index_of_envelope_abs, 'r', 'Signal detected', 'LineWidth', 2, 'LabelVerticalAlignment','bottom');
 % With Data lines
 figure;
 plot(diff);
 title("Difference envelope (Mark - Space) with data lines")
 ylabel("Amplitude")
 xlabel("Index")
-xline(start_bits, 'r', "Start bit");
-xline(reads, 'b', "Data bit");
+xline(start_bits, 'r', "Start bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
+xline(reads, 'b', "Data bit", 'LineWidth',2, 'FontSize',12, 'LabelVerticalAlignment','bottom');
 
+% STFT
+figure;
+stft(signal, Fs, 'Window', kaiser(256, 5), 'OverlapLength', 220, 'FFTLength', 512);
+ylim([2 2.5])
 %% Decode
 function decodedText = decodeBaudot(bits, forceState)
     % DECODEBAUDOT Converts a list of bits into Baudot (ITA2) characters.
