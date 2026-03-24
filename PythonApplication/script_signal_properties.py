@@ -1,0 +1,56 @@
+import matplotlib.pyplot as plt
+from debug_internal_signal import internal_signal
+from RTTY_options import RTTYOpts
+from baudot import BaudotEncoder
+import scipy.signal as sig
+import numpy as np
+
+Fs = 8000
+
+opts = RTTYOpts(baud=10, mark=50, shift=50, pre_msg_stops=1)
+
+message = "HI"
+
+encoder = BaudotEncoder()
+
+encoded = encoder.encode(message)
+
+signal, t, annotations = internal_signal(encoded, Fs, opts)
+
+fig = plt.figure()
+plt.plot(t, signal)
+plt.title(f"Time domain view of RTTY signal ({opts})")
+plt.xlabel("Time (s)")
+plt.ylabel("Value")
+plt.ylim((-1.0, 1.4))
+annotations.draw(fig.get_axes()[0], Fs)
+
+
+num_per_segment = 256
+num_overlap = 220
+nfft = 512
+beta = 5
+
+# Create the Kaiser window
+window = sig.windows.kaiser(num_per_segment, beta) # pyright: ignore [reportAttributeAccessIssue]
+
+# Compute the STFT
+STFT = sig.ShortTimeFFT(
+    window, hop=(num_per_segment - num_overlap), fs=Fs, mfft=nfft, scale_to="magnitude"
+)
+
+Zxx = np.abs(STFT.stft(signal))
+f = STFT.f
+t = STFT.t(len(signal))
+
+fig = plt.figure()
+plt.imshow(Zxx, origin='lower', aspect='auto', 
+           extent=STFT.extent(len(signal)), cmap='viridis')
+
+plt.colorbar(label='Magnitude')
+plt.ylabel('Frequency (Hz)')
+plt.xlabel('Time (s)')
+plt.ylim((opts.mark - opts.shift, opts.space + opts.shift))
+annotations.draw(fig.axes[0], Fs)
+
+plt.show()
