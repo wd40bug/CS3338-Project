@@ -4,7 +4,7 @@ import numpy.typing as npt
 
 
 class AudioSource(Protocol):
-    def read_chunk(self) -> npt.NDArray[np.float64]: ...
+    def read_chunk(self) -> npt.NDArray[np.float64] | None: ...
 
 
 class MockSignalSource:
@@ -17,9 +17,9 @@ class MockSignalSource:
         self.chunk_size = chunk_size
         self.__idx = 0
 
-    def read_chunk(self) -> npt.NDArray[np.float64]:
+    def read_chunk(self) -> npt.NDArray[np.float64] | None:
         if self.__idx >= len(self.signal):
-            raise StopIteration
+            return None
 
         chunk = self.signal[self.__idx : self.__idx + self.chunk_size]
         self.__idx += self.chunk_size

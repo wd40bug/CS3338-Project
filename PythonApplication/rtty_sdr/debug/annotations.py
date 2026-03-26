@@ -53,12 +53,11 @@ class DebugAnnotations:
         starts = np.add(self.start_bits, delay) / Fs
         datas = np.add(self.data_bits, delay) / Fs
         stops = np.add(self.stop_bits, delay) / Fs
-        line(
-            ax, "x", starts, "Start", color="r", linestyle="--"
-        )
-        line(
-            ax, "x", datas, "Data", color="purple", linestyle="--"
-        )
-        line(
-            ax, "x", stops, "Stop", color="black", linestyle="--"
-        )
+        line(ax, "x", starts, "Start", color="r", linestyle="--")
+        line(ax, "x", datas, "Data", color="purple", linestyle="--")
+        line(ax, "x", stops, "Stop", color="black", linestyle="--")
+
+    def join(self, other: DebugAnnotations) -> None:
+        self.start_bits = np.concat((self.start_bits, other.start_bits))
+        self.stop_bits = np.concat((self.stop_bits, other.stop_bits))
+        self.data_bits = np.concat((self.data_bits, other.data_bits))

@@ -143,15 +143,15 @@ class BaudotDecoder():
     LTRS_Map: Final[dict[int, str]] = {value: key for key,value in BaudotEncoder.LTRS_Map.items()}
     FIGS_Map: Final[dict[int, str]] = {value: key for key,value in BaudotEncoder.FIGS_Map.items()}
 
-    def __init__(self, initial_shift: Shift) -> None:
+    def __init__(self, initial_shift: Shift = Shift.LTRS) -> None:
         self.__state = initial_shift
 
     def set_shift(self, new_shift) -> None:
         self.__state = new_shift
 
     def decode(self, codes: list[int] | int) -> str:
-
-        if isinstance(codes, int):
+        
+        if not isinstance(codes, list):
             codes = [codes]
 
         ret = ""
