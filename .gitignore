@@ -1,3 +1,5 @@
 *.asv
 ESP_Side/.cache
 __pycache__
+launch.json
+settings.json
