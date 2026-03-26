@@ -1,13 +1,16 @@
 import matplotlib.pyplot as plt
-from debug_internal_signal import internal_signal
-from RTTY_options import RTTYOpts
-from baudot import BaudotEncoder
 import scipy.signal as sig
 import numpy as np
 
+from rtty_sdr.core.options import SystemOpts, RTTYOpts
+from rtty_sdr.debug.internal_signal import internal_signal
+from rtty_sdr.core.baudot import BaudotEncoder
+
+
 Fs = 8000
 
-opts = RTTYOpts(baud=10, mark=50, shift=50, pre_msg_stops=1)
+rtty = RTTYOpts(baud=10, mark=50, shift=50, pre_msg_stops=1)
+opts = SystemOpts(Fs, rtty)
 
 message = "HI"
 
@@ -15,15 +18,15 @@ encoder = BaudotEncoder()
 
 encoded = encoder.encode(message)
 
-signal, t, annotations = internal_signal(encoded, Fs, opts)
+signal, t, annotations = internal_signal(encoded, opts)
 
 fig = plt.figure()
 plt.plot(t, signal)
-plt.title(f"Time domain view of RTTY signal ({opts})")
+plt.title(f"Time domain view of RTTY signal ({opts.rtty})")
 plt.xlabel("Time (s)")
 plt.ylabel("Value")
 plt.ylim((-1.0, 1.4))
-annotations.draw(fig.get_axes()[0], Fs)
+annotations.draw(fig.get_axes()[0], Fs=Fs)
 
 
 num_per_segment = 256
@@ -50,7 +53,7 @@ plt.imshow(Zxx, origin='lower', aspect='auto',
 plt.colorbar(label='Magnitude')
 plt.ylabel('Frequency (Hz)')
 plt.xlabel('Time (s)')
-plt.ylim((opts.mark - opts.shift, opts.space + opts.shift))
-annotations.draw(fig.axes[0], Fs)
+plt.ylim((rtty.mark - rtty.shift, rtty.space + rtty.shift))
+annotations.draw(fig.axes[0], Fs=Fs)
 
 plt.show()
