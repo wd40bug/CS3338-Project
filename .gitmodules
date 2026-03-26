@@ -1,0 +1,3 @@
+[submodule "PythonApplication/plotWindow"]
+	path = PythonApplication/plotWindow
+	url = https://github.com/superjax/plotWindow

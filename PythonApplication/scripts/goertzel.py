@@ -1,0 +1,42 @@
+from rtty_sdr.dsp.engines import GoertzelEngine
+from rtty_sdr.dsp.sources import MockSignalSource
+from rtty_sdr.debug.awgn import awgn
+from rtty_sdr.debug.internal_signal import internal_signal
+from rtty_sdr.core.options import SystemOpts, RTTYOpts
+from rtty_sdr.core.baudot import BaudotEncoder
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+Fs = 8000
+rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1)
+opts = SystemOpts(Fs, rtty)
+message = "HI"
+encoder = BaudotEncoder()
+encoded = encoder.encode(message)
+signal, t, annotations = internal_signal(encoded, opts)
+
+chunk_size = opts.nsamp // 5
+overlap_size = chunk_size // 2
+
+powers = np.array([])
+
+signal = awgn(signal, 10)
+
+signal_source = MockSignalSource(signal, chunk_size)
+goertzel = GoertzelEngine(overlap_size, 256, opts)
+
+try:
+    while True:
+        chunk = signal_source.read_chunk()
+        power, _ = goertzel.process(chunk)
+        powers = np.append(powers, power)
+except StopIteration:
+    pass
+
+
+fig = plt.figure()
+plt.plot(powers, label="Diff")
+plt.legend()
+annotations.draw(fig.axes[0])
+plt.show()
