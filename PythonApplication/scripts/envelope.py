@@ -25,17 +25,19 @@ envelope_engine = EnvelopeEngine(opts)
 
 diff_env = []
 
-try:
-    while True:
-        chunk = signal_source.read_chunk()
-        env, _ = envelope_engine.process(chunk)
-        diff_env = np.append(diff_env, env)
-except StopIteration:
-    pass
+while True:
+    chunk = signal_source.read_chunk()
+    if chunk is None:
+        break
+    env, _ = envelope_engine.process(chunk)
+    diff_env = np.append(diff_env, env)
 
 delay = envelope_engine.delay
 
 fig = plt.figure()
 plt.plot(t, diff_env)
 annotations.draw(fig.axes[0], delay, Fs)
+plt.title("Envelope")
+plt.xlabel("Index")
+plt.ylabel("Magnitude")
 plt.show()

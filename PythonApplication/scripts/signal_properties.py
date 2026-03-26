@@ -51,6 +51,7 @@ plt.imshow(Zxx, origin='lower', aspect='auto',
            extent=STFT.extent(len(signal)), cmap='viridis')
 
 plt.colorbar(label='Magnitude')
+plt.title("STFT")
 plt.ylabel('Frequency (Hz)')
 plt.xlabel('Time (s)')
 plt.ylim((rtty.mark - rtty.shift, rtty.space + rtty.shift))
