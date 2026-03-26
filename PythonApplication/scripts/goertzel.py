@@ -26,17 +26,19 @@ signal = awgn(signal, 10)
 signal_source = MockSignalSource(signal, chunk_size)
 goertzel = GoertzelEngine(overlap_size, 256, opts)
 
-try:
-    while True:
-        chunk = signal_source.read_chunk()
-        power, _ = goertzel.process(chunk)
-        powers = np.append(powers, power)
-except StopIteration:
-    pass
+while True:
+    chunk = signal_source.read_chunk()
+    if chunk is None:
+        break
+    power, _ = goertzel.process(chunk)
+    powers = np.append(powers, power)
 
 
 fig = plt.figure()
 plt.plot(powers, label="Diff")
 plt.legend()
 annotations.draw(fig.axes[0])
+plt.title("Goertzel")
+plt.ylabel("Magnitude")
+plt.xlabel("Index")
 plt.show()

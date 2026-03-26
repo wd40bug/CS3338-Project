@@ -12,11 +12,12 @@ from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
+import sys
 
 Fs = 8000
 rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1)
 opts = SystemOpts(Fs, rtty)
-message = "HI"
+message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 encoder = BaudotEncoder()
 send_message = SendMessage(message, "KJ5OEH", encoder)
