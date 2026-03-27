@@ -1,7 +1,9 @@
 from rtty_sdr.core.protocol import SendMessage, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
+from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
+from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts, RTTYOpts
 from rtty_sdr.debug.awgn import awgn
@@ -36,13 +38,15 @@ annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
+squelch = Squelch(opts, 0.2, 1)
 decoder = BaudotDecoder()
 
-generator = decode_stream(signal_source, engine, opts)
+generator = decode_stream(signal_source, squelch, engine, opts)
 
 for received in protocol(generator, decoder):
     print(f"Received: {received.encoding}")
     fig = plt.figure()
-    plt.plot(received.summed_debug.envelope)
-    received.summed_debug.annotations.draw(fig.axes[0])
+    plt.plot(t[:len(received.summed_debug.envelope)], received.summed_debug.envelope)
+    plot_shaded_squelch(t[:len(received.summed_debug.envelope)], fig.axes[0], received.summed_debug.squelch)
+    received.summed_debug.annotations.draw(fig.axes[0], Fs=Fs)
     plt.show()

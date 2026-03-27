@@ -1,98 +1,51 @@
-from typing import Protocol, Final
+from dataclasses import dataclass
+import sys
+from typing import Protocol, Final, Type, TypeVar, Generic
 import numpy as np
 import numpy.typing as npt
 
+from rtty_sdr.dsp.envelope import Envelope
 from rtty_sdr.dsp.filters import *
 from rtty_sdr.core.options import SystemOpts
 
 import fastgoertzel as fg
 
 
-class DemodulatorEngine(Protocol):
-    type EngineReturn = tuple[npt.NDArray[np.float64], npt.NDArray[np.int_]]
+T_DebugInfo = TypeVar("T_DebugInfo")
+
+
+class DemodulatorEngine(Protocol, Generic[T_DebugInfo]):
+    type EngineReturn = tuple[
+        npt.NDArray[np.float64], T_DebugInfo
+    ]
 
     def process(self, audio_chunk: npt.NDArray[np.float64]) -> EngineReturn: ...
 
 
 class EnvelopeEngine(DemodulatorEngine):
-    __overall: PeakFilter
-    __mark: PeakFilter
-    __space: PeakFilter
-    __lpf_mark: LowPassFilter
-    __lpf_space: LowPassFilter
-    delay: Final[float]
-    
-    __previous_state_was_squelch: bool
-    upper_thresh: Final[float]
-    lower_thresh: Final[float]
+    class DebugInfo:
+        bigger_envelope: npt.NDArray[np.float64]
 
-
-    def __init__(self, opts: SystemOpts, signal_thresh: float, drop_thresh: float):
-        BW_total = 2 * 170 + 2 * 45.45
+    def __init__(self, opts: SystemOpts):
         BW_one = 1.2 * 45.45
-        self.__overall = PeakFilter(
-            opts.Fs, (opts.rtty.mark + opts.rtty.space) / 2, BW_total, 4
-        )
         self.__mark = PeakFilter(opts.Fs, opts.rtty.mark, BW_one, 4)
         self.__space = PeakFilter(opts.Fs, opts.rtty.space, BW_one, 4)
-        self.__lpf_mark = LowPassFilter(opts.Fs, 70, 4)
-        self.__lpf_space = LowPassFilter(opts.Fs, 70, 4)
-        self.delay = (
-            SosFilter.group_delay(
-                [self.__overall, self.__mark], np.array([self.__mark.center])
-            )[0]
-            + SosFilter.group_delay(
-                [self.__lpf_mark],
-                np.array([1.0]),  # Evaluate at 1 Hz (close enough to DC)
-            )[0]
-        )
-        self.__previous_state_was_squelch = True
-        self.upper_thresh = signal_thresh
-        self.lower_thresh = drop_thresh
+        self.__mark_env = Envelope(opts)
+        self.__space_env = Envelope(opts)
+        self.delay: Final[float] = self.__mark.delay + self.__mark_env.delay
 
     def process(
         self, audio_chunk: npt.NDArray[np.float64]
     ) -> DemodulatorEngine.EngineReturn:
-        # 1. Apply Mark/Space filters
-        filtered = self.__overall.filter(audio_chunk)
-        mark = self.__mark.filter(filtered)
-        space = self.__space.filter(filtered)
-        # 2. Square and Low-Pass
-        mark_env = self.__lpf_mark.filter(mark**2)
-        space_env = self.__lpf_space.filter(space**2)
-        # 3. Calculate Squelch Hysteresis
-        bigger_env = np.maximum(mark_env, space_env)
-
-        force_squelch = bigger_env < self.lower_thresh
-        force_unsquelch = bigger_env > self.upper_thresh
-
-        state_defined = force_squelch | force_unsquelch
-
-        squelch: npt.NDArray[np.int_]
-
-        if np.any(state_defined):
-            squelch = np.empty(len(bigger_env), dtype=np.int_)
-            squelch[force_squelch] = 1
-            squelch[force_unsquelch] = 0
-
-            if not state_defined[0]:
-                state_defined[0] = True
-                squelch[0] = self.__previous_state_was_squelch
-
-            idx = np.arange(len(bigger_env))
-
-            last_defined_idx = np.maximum.accumulate(np.where(state_defined, idx, 0))
-
-            squelch = squelch[last_defined_idx]
-        else:
-            squelch = np.full(len(bigger_env), self.__previous_state_was_squelch, dtype=np.int_)
-
-        self.__previous_state_was_squelch = squelch[-1]
-
-        # 4. Compare Envelopes
+        # Apply Mark/Space filters
+        mark = self.__mark.filter(audio_chunk)
+        space = self.__space.filter(audio_chunk)
+        # Square and Low-Pass
+        mark_env = self.__mark_env.envelope(mark)
+        space_env = self.__space_env.envelope(space)
+        # Compare Envelopes
         diff: npt.NDArray[np.float64] = mark_env - space_env
-        # Return state_mask and squelch_mask
-        return diff, squelch
+        return diff, None
 
 
 class GoertzelEngine(DemodulatorEngine):
@@ -118,11 +71,18 @@ class GoertzelEngine(DemodulatorEngine):
     ) -> float:
         n = len(signal)
         N = max(n, N)
-        signal_windowed = np.hamming(n) * signal
+        window = np.hamming(n)
+        signal_windowed = window * signal
         signal_padded = np.concat((signal_windowed, np.zeros(N - n)))
 
         mag, _ = fg.goertzel(signal_padded, freq / Fs)  # type: ignore
-        return mag
+
+        # 1. Undo the window's coherent gain to recover the true real-world amplitude
+        coherent_gain = np.sum(window)
+        amplitude = 2.0 * mag / coherent_gain
+        
+        # 2. Return the RMS Power of the tone (A^2 / 2)
+        return float((amplitude ** 2) / 2.0)
 
     def process(
         self, audio_chunk: npt.NDArray[np.float64]
@@ -135,10 +95,8 @@ class GoertzelEngine(DemodulatorEngine):
         space_power = GoertzelEngine.goertzel(
             frame, self.opts.Fs, self.opts.rtty.space, self.dft_block_size
         )
-        diff = mark_power - space_power
 
         # Update overlap
         self.__overlap = frame[-self.overlap_size :]
 
-        # TODO: Squelch
-        return np.full(audio_chunk.shape, diff), np.ones(audio_chunk.shape, dtype=np.int_)
+        return np.full(audio_chunk.shape, mark_power - space_power), None

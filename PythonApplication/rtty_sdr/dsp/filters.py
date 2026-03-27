@@ -35,14 +35,16 @@ class SosFilter(ABC):
 
     @staticmethod
     def group_delay(
-        filters: list[SosFilter], freqs: npt.NDArray[np.float64]
+        filters: list['SosFilter'], freqs: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
         delay = np.zeros(len(freqs))
-        for filter in filters:
-            _, GD = sc.signal.group_delay(
-                sc.signal.sos2tf(filter.sos), w=freqs, fs=filter.Fs
-            )
-            delay += GD
+        for f in filters:
+            # Iterate through each biquad section
+            for i in range(f.sos.shape[0]):
+                # sos array rows are [b0, b1, b2, a0, a1, a2]
+                b, a = f.sos[i, :3], f.sos[i, 3:]
+                _, GD = sc.signal.group_delay((b, a), w=freqs, fs=f.Fs)
+                delay += GD
         return delay
 
 
@@ -50,10 +52,9 @@ class SosFilter(ABC):
 class PeakFilter(SosFilter):
     corners: Final[tuple[float, float]]
     center: Final[float]
-    center_name: Final[str]
 
     def __init__(
-        self, Fs: float, freq: float, BW: float, order: int, center_name: str = "Center"
+        self, Fs: float, freq: float, BW: float, order: int
     ):
         fc1 = freq - BW / 2
         fc2 = freq + BW / 2
@@ -61,7 +62,7 @@ class PeakFilter(SosFilter):
         super().__init__(sos, order, Fs)
         self.corners = (fc1, fc2)
         self.center = freq
-        self.center_name = center_name
+        self.delay: float = SosFilter.group_delay([self], np.array([freq]))[0]
 
     def __str__(self) -> str:
         return f"Bandpass Filter (Order: {self.order}, Fcenter: {self.center} Hz, Width: {self.corners[1] - self.corners[0]:.1f} Hz)"

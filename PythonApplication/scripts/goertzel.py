@@ -1,3 +1,4 @@
+from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.engines import GoertzelEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.debug.awgn import awgn
@@ -20,6 +21,12 @@ chunk_size = opts.nsamp // 5
 overlap_size = chunk_size // 2
 
 powers = np.array([])
+squelch = np.array([])
+
+signal_power = np.array([])
+noise_power = np.array([])
+total_power = np.array([])
+snr = np.array([])
 
 signal = awgn(signal, 10)
 
@@ -30,15 +37,15 @@ while True:
     chunk = signal_source.read_chunk()
     if chunk is None:
         break
-    power, _ = goertzel.process(chunk)
+    power, debug = goertzel.process(chunk)
     powers = np.append(powers, power)
 
-
 fig = plt.figure()
-plt.plot(powers, label="Diff")
-plt.legend()
-annotations.draw(fig.axes[0])
+# First plot
+plt.plot(t, powers)
+annotations.draw(fig.axes[0], Fs=Fs)
 plt.title("Goertzel")
 plt.ylabel("Magnitude")
 plt.xlabel("Index")
+
 plt.show()

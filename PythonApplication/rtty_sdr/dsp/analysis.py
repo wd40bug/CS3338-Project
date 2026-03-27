@@ -10,7 +10,7 @@ class DecodeDebug:
     indices: npt.NDArray[np.int_]
     signal: npt.NDArray[np.float64]
     envelope: npt.NDArray[np.float64]
-    squelch: npt.NDArray[np.float64]
+    squelch: npt.NDArray[np.int_]
     annotations: DebugAnnotations
 
     @classmethod
@@ -43,7 +43,7 @@ class DecodeDebug:
 class StreamData:
     signal: npt.NDArray[np.float64]
     envelope: npt.NDArray[np.float64]
-    squelch: npt.NDArray[np.float64]
+    squelch: npt.NDArray[np.int_]
 
     def __len__(self) -> int:
         return len(self.signal)
@@ -71,7 +71,7 @@ class DecodeDebugBuilder:
         self,
         signal: npt.NDArray[np.float64],
         envelope: npt.NDArray[np.float64],
-        squelch: npt.NDArray[np.float64],
+        squelch: npt.NDArray[np.int_],
     ) -> None:
         assert self.__frame_data is None, "Previous frame was not committed!"
         self.__frame_consumed = 0

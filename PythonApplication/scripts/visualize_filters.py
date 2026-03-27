@@ -8,8 +8,8 @@ BW_total = 2 * 170 + 2 * 45.45
 BW_one = 1.2 * 45.45
 
 both = PeakFilter(Fs, (2125 + 2295) / 2, BW_total, 4)
-mark = PeakFilter(Fs, 2125, BW_one, 4, "Mark")
-space = PeakFilter(Fs, 2295, BW_one, 4, "Space")
+mark = PeakFilter(Fs, 2125, BW_one, 4)
+space = PeakFilter(Fs, 2295, BW_one, 4)
 
 fig, ax = plt.subplots()
 plot_freq_response(fig.axes[0], both,[("Mark", 2125), ("Space", 2295)])

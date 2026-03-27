@@ -4,11 +4,12 @@ from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.analysis import DecodeDebug, DecodeDebugBuilder
 from rtty_sdr.dsp.engines import DemodulatorEngine
 from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.dsp.squelch import Squelch
 
 type DecodeYield = Literal["reset"] | tuple[int, DecodeDebug]
 
 def decode_stream(
-    source: AudioSource, engine: DemodulatorEngine, opts: SystemOpts
+    source: AudioSource, squelch: Squelch, engine: DemodulatorEngine, opts: SystemOpts
 ) -> Iterator[DecodeYield]:
     countdown: None | int = None
     state: Literal["no_signal", "idle", "start", "data", "stop"] = "start"
@@ -21,7 +22,9 @@ def decode_stream(
         if raw_audio is None:
             return
 
-        samples, squelch_arr = engine.process(raw_audio)
+        filtered_audio, squelch_arr, _ = squelch.process(raw_audio)
+
+        samples, _ = engine.process(filtered_audio)
         
         # Give the chunk to the builder
         builder.load_frame(raw_audio, samples, squelch_arr)

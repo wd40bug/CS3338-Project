@@ -11,6 +11,8 @@ import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 
+from rtty_sdr.dsp.squelch import Squelch
+
 Fs = 8000
 rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1)
 opts = SystemOpts(Fs, rtty)
@@ -31,9 +33,10 @@ annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
+squelch = Squelch(opts, 0.2, 1)
 decoder = BaudotDecoder()
 
-for ret in decode_stream(signal_source, engine, opts):
+for ret in decode_stream(signal_source, squelch, engine, opts):
     assert ret != "reset"
     code, debug = ret
     print(f"Code: {code} -> {decoder.decode(code)}")
@@ -42,6 +45,6 @@ for ret in decode_stream(signal_source, engine, opts):
     annotations.join(debug.annotations)
 
 fig = plt.figure()
-plt.plot(envelope)
-annotations.draw(fig.axes[0])
+plt.plot(t[:len(envelope)], envelope)
+annotations.draw(fig.axes[0], delay=squelch.delay, Fs=Fs)
 plt.show()
