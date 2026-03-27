@@ -1,7 +1,6 @@
-from typing import Protocol
 from rtty_sdr.core.protocol import SendMessage, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
-from rtty_sdr.dsp.DSP import decode_stream
+from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts, RTTYOpts
@@ -44,6 +43,6 @@ generator = decode_stream(signal_source, engine, opts)
 for received in protocol(generator, decoder):
     print(f"Received: {received.encoding}")
     fig = plt.figure()
-    plt.plot(received.debug.envelope)
-    received.debug.annotations.draw(fig.axes[0])
+    plt.plot(received.summed_debug.envelope)
+    received.summed_debug.annotations.draw(fig.axes[0])
     plt.show()

@@ -1,5 +1,5 @@
 from rtty_sdr.debug.annotations import DebugAnnotations
-from rtty_sdr.dsp.DSP import decode_stream
+from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts, RTTYOpts
@@ -33,11 +33,13 @@ indices: npt.NDArray[np.int_] = np.array([])
 
 decoder = BaudotDecoder()
 
-for code,index, env, anno in decode_stream(signal_source, engine, opts):
+for ret in decode_stream(signal_source, engine, opts):
+    assert ret != "reset"
+    code, debug = ret
     print(f"Code: {code} -> {decoder.decode(code)}")
-    index = np.concat((indices, index))
-    envelope = np.concat((envelope, env))
-    annotations.join(anno)
+    index = np.concat((indices, debug.indices))
+    envelope = np.concat((envelope, debug.envelope))
+    annotations.join(debug.annotations)
 
 fig = plt.figure()
 plt.plot(envelope)
