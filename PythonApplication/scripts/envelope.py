@@ -1,3 +1,4 @@
+from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.engines import EnvelopeEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts, RTTYOpts
@@ -21,21 +22,26 @@ signal = awgn(signal, 10)
 chunk_size = opts.nsamp // 5
 
 signal_source = MockSignalSource(signal, chunk_size)
-envelope_engine = EnvelopeEngine(opts)
+envelope_engine = EnvelopeEngine(opts, 0.5, 0.6)
 
-diff_env = []
+diff_env = np.array([])
+squelch = np.array([])
 
 while True:
     chunk = signal_source.read_chunk()
     if chunk is None:
         break
-    env, _ = envelope_engine.process(chunk)
+    env, sq = envelope_engine.process(chunk)
     diff_env = np.append(diff_env, env)
+    squelch = np.append(squelch, sq)
 
 delay = envelope_engine.delay
 
 fig = plt.figure()
 plt.plot(t, diff_env)
+
+plot_shaded_squelch(t, fig.axes[0], squelch)
+
 annotations.draw(fig.axes[0], delay, Fs)
 plt.title("Envelope")
 plt.xlabel("Index")
