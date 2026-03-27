@@ -18,7 +18,10 @@ const char* pass = "RTTYROX";
 const char* CallSign = "KJ5OEH";
 
 const int NumBitsPerChar = 5;
-
+const int Mark = 2125;
+const int Shift = 170;
+const double Baud = 45.45;
+const int BitDuration = round(1000.0 / Baud);
 
 WiFiServer server(80);
 
@@ -74,7 +77,7 @@ class Transmitter{
   }
   void start(){
     digitalWrite(Transmit, LOW);
-    sendStop(40);
+    sendStop(20);
   }
   void send_char(int code){
     sendBit(0);
@@ -103,7 +106,7 @@ void setup() {
   IPAddress IP = WiFi.softAPIP();
   Serial.print("IP address: ");
   Serial.print(IP);
-  
+
   server.begin();
 
   lcd.begin(16, 2);
