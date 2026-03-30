@@ -29,7 +29,7 @@ overlap_size = chunk_size // 2
 signal_source = MockSignalSource(signal, chunk_size)
 engine = GoertzelEngine(overlap_size, 256, opts)
 
-annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
+annotations = []
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
@@ -42,9 +42,9 @@ for ret in decode_stream(signal_source, squelch, engine, opts):
     print(f"Code: {code} -> {decoder.decode(code)}")
     index = np.concat((indices, debug.indices))
     envelope = np.concat((envelope, debug.envelope))
-    annotations.join(debug.annotations)
+    annotations.append(debug.annotations)
 
 fig = plt.figure()
 plt.plot(t[:len(envelope)], envelope)
-annotations.draw(fig.axes[0], delay=squelch.delay, Fs=Fs)
+DebugAnnotations.combine(annotations).draw(fig.axes[0], delay=squelch.delay, Fs=Fs)
 plt.show()

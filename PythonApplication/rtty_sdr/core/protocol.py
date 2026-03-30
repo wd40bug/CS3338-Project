@@ -4,11 +4,13 @@ from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import crcmod.predefined
 from typing import Final, Iterator
 from enum import StrEnum, auto
-from rtty_sdr.dsp.analysis import DecodeDebug
-from rtty_sdr.dsp.decode import DecodeYield
+from rtty_sdr.debug.debug_types import DebugCombineable
+from rtty_sdr.dsp.decode import DecodeYield, DecodeDebug
 from rtty_sdr.debug.annotations import DebugAnnotations
 import numpy as np
 import numpy.typing as npt
+
+from rtty_sdr.dsp.squelch import SquelchDebug
 
 LengthLen: Final[int] = 2
 ChecksumLen: Final[int] = 4
@@ -46,11 +48,14 @@ class SendMessage(ProtocolMessage):
         codes = pre_checksum + encoder.encode(checksum_str + callsign)
         super().__init__(msg, callsign, encoding, codes, checksum)
 
+class ProtocolDebug:
+    def __init__(self, decode: list[DecodeDebug]) -> None:
+        self.decode = DecodeDebug.combine(decode)
+
 
 class RecvMessage(ProtocolMessage):
     calculatedChecksum: Final[int]
     validChecksum = Final[bool]
-    summed_debug: DecodeDebug
 
     def __init__(
         self,
@@ -60,13 +65,15 @@ class RecvMessage(ProtocolMessage):
         codes: list[int],
         checksum_start_idx: int,
         checksum_str: str,
-        debug: DecodeDebug,
+        decode_debug: list[DecodeDebug],
     ):
         checksum = int(checksum_str, 16)
         super().__init__(msg, callsign, encoding, codes, checksum)
         self.calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
         self.validChecksum = self.calculatedChecksum == self.checksum
-        self.summed_debug = debug
+        self.debug: ProtocolDebug = ProtocolDebug(
+            decode_debug
+        )
 
 
 def protocol(
@@ -126,6 +133,6 @@ def protocol(
                         codes,
                         checksum_start_idx,
                         checksum,
-                        DecodeDebug.concat(debugs),
+                        debugs,
                     )
                     debugs.clear()

@@ -1,9 +1,8 @@
-from dataclasses import dataclass
-import sys
-from typing import Protocol, Final, Type, TypeVar, Generic
+from typing import Protocol, Final, TypeVar, Generic
 import numpy as np
 import numpy.typing as npt
 
+from rtty_sdr.debug.debug_types import DebugCombineable
 from rtty_sdr.dsp.envelope import Envelope
 from rtty_sdr.dsp.filters import *
 from rtty_sdr.core.options import SystemOpts
@@ -11,21 +10,16 @@ from rtty_sdr.core.options import SystemOpts
 import fastgoertzel as fg
 
 
-T_DebugInfo = TypeVar("T_DebugInfo")
+T_DebugInfo = TypeVar("T_DebugInfo", bound=DebugCombineable, covariant=True)
 
 
 class DemodulatorEngine(Protocol, Generic[T_DebugInfo]):
-    type EngineReturn = tuple[
-        npt.NDArray[np.float64], T_DebugInfo
-    ]
-
-    def process(self, audio_chunk: npt.NDArray[np.float64]) -> EngineReturn: ...
+    def process(
+        self, audio_chunk: npt.NDArray[np.float64]
+    ) -> tuple[npt.NDArray[np.float64], T_DebugInfo]: ...
 
 
 class EnvelopeEngine(DemodulatorEngine):
-    class DebugInfo:
-        bigger_envelope: npt.NDArray[np.float64]
-
     def __init__(self, opts: SystemOpts):
         BW_one = 1.2 * 45.45
         self.__mark = PeakFilter(opts.Fs, opts.rtty.mark, BW_one, 4)
@@ -36,7 +30,7 @@ class EnvelopeEngine(DemodulatorEngine):
 
     def process(
         self, audio_chunk: npt.NDArray[np.float64]
-    ) -> DemodulatorEngine.EngineReturn:
+    ) -> tuple[npt.NDArray[np.float64], None]:
         # Apply Mark/Space filters
         mark = self.__mark.filter(audio_chunk)
         space = self.__space.filter(audio_chunk)
@@ -80,13 +74,13 @@ class GoertzelEngine(DemodulatorEngine):
         # 1. Undo the window's coherent gain to recover the true real-world amplitude
         coherent_gain = np.sum(window)
         amplitude = 2.0 * mag / coherent_gain
-        
+
         # 2. Return the RMS Power of the tone (A^2 / 2)
-        return float((amplitude ** 2) / 2.0)
+        return float((amplitude**2) / 2.0)
 
     def process(
         self, audio_chunk: npt.NDArray[np.float64]
-    ) -> DemodulatorEngine.EngineReturn:
+    ) -> tuple[npt.NDArray[np.float64], None]:
         frame = np.concat((self.__overlap, audio_chunk))
 
         mark_power = GoertzelEngine.goertzel(

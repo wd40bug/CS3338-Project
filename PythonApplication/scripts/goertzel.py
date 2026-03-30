@@ -1,4 +1,3 @@
-from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.engines import GoertzelEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.debug.awgn import awgn

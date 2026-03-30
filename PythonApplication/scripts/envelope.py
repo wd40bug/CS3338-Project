@@ -1,4 +1,3 @@
-from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.engines import EnvelopeEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts, RTTYOpts

@@ -5,6 +5,8 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import numpy as np
 
+from rtty_sdr.debug.debug_types import DebugCombineable
+
 
 def line(
     ax: Axes,
@@ -43,7 +45,7 @@ def line(
 
 
 @dataclass
-class DebugAnnotations:
+class DebugAnnotations(DebugCombineable):
     start_bits: np.typing.NDArray[np.int_]
     stop_bits: np.typing.NDArray[np.int_]
     data_bits: np.typing.NDArray[np.int_]
@@ -57,7 +59,15 @@ class DebugAnnotations:
         line(ax, "x", datas, "Data", color="purple", linestyle="--")
         line(ax, "x", stops, "Stop", color="black", linestyle="--")
 
-    def join(self, other: DebugAnnotations) -> None:
-        self.start_bits = np.concat((self.start_bits, other.start_bits))
-        self.stop_bits = np.concat((self.stop_bits, other.stop_bits))
-        self.data_bits = np.concat((self.data_bits, other.data_bits))
+    @classmethod
+    def combine(cls, debugs: Iterable[DebugAnnotations]) -> DebugAnnotations:
+        debug_list = list(debugs)
+
+        if not debug_list:
+            # Return an empty instance if the iterable is empty
+            return cls(np.array([]), np.array([]), np.array([]))
+        return cls(
+            start_bits=np.concatenate([d.start_bits for d in debugs]),
+            stop_bits=np.concatenate([d.stop_bits for d in debugs]),
+            data_bits=np.concatenate([d.data_bits for d in debugs]),
+        )
