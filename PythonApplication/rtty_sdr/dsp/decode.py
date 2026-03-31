@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.engines import DemodulatorEngine
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import DecodeStreamOpts
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.debug_types import DebugCombineable
@@ -27,10 +27,9 @@ def decode_stream(
     source: AudioSource,
     squelch: Squelch,
     engine: DemodulatorEngine,
-    opts: SystemOpts,
-    squelch_grace_period: int,
-    awaited_idle_len: int,
+    opts: DecodeStreamOpts
 ) -> Iterator[DecodeYield]:
+    signal_opts = opts.decode.signal
     countdown: None | int = None
     state: DecodeState = DecodeState.NO_SIGNAL
     current_word: list[bool] = []
@@ -61,7 +60,7 @@ def decode_stream(
             # Squelch
             if sq:
                 squelch_count += 1
-                if squelch_count > squelch_grace_period:
+                if squelch_count > opts.squelch_grace_period:
                     if state != DecodeState.NO_SIGNAL and state != DecodeState.IDLE:
                         # Lost signal, reset protocol
                         yield ("reset", builder.build(i, DecodeState.NO_SIGNAL))
@@ -78,7 +77,7 @@ def decode_stream(
                 case DecodeState.IDLE:
                     if sample > 0:
                         idle_len += 1
-                        if idle_len >= awaited_idle_len:
+                        if idle_len >= opts.idle_samples:
                             state = DecodeState.START
                             builder.change_state(i, state)
                     else:
@@ -88,12 +87,12 @@ def decode_stream(
                         builder.start_bit(i)
                         state = DecodeState.DATA
                         builder.change_state(i, state)
-                        countdown = round(1.5 * opts.nsamp)
+                        countdown = round(1.5 * signal_opts.nsamp)
                         current_word.clear()
                 case DecodeState.DATA:
                     current_word.append(sample > 0)
                     builder.data_bit(i)
-                    countdown = opts.nsamp
+                    countdown = signal_opts.nsamp
                     if len(current_word) == 5:
                         state = DecodeState.STOP
                         builder.change_state(i, state)

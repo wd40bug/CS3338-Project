@@ -6,7 +6,7 @@ from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
-from rtty_sdr.core.options import SystemOpts, RTTYOpts
+from rtty_sdr.core.options import DecodeCommon, DecodeStreamOpts, EnvelopeOpts, GoertzelOpts, RTTYOpts, SignalOpts, SquelchOpts
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
 from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
@@ -18,7 +18,7 @@ import sys
 
 Fs = 8000
 rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1, stop_bits=2)
-opts = SystemOpts(Fs, rtty)
+opts = SignalOpts(Fs, rtty)
 message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 encoder = BaudotEncoder()
@@ -29,21 +29,20 @@ signal, t, annotations = internal_signal(encoded, opts, 0.05)
 
 signal = awgn(signal, 10)
 
-chunk_size = opts.nsamp // 5
-overlap_size = chunk_size // 2
-
-signal_source = MockSignalSource(signal, chunk_size)
-# engine = GoertzelEngine(overlap_size, 256, opts)
-engine = EnvelopeEngine(opts)
+decode = DecodeCommon(5, opts)
+signal_source = MockSignalSource(signal, decode)
+# engine = GoertzelEngine(GoertzelOpts(0.5, 256, decode))
+engine = EnvelopeEngine(EnvelopeOpts(4, decode))
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
-squelch = Squelch(opts, 0.2, 1)
+squelch_opts = SquelchOpts(0.2, 1, decode)
+squelch = Squelch(squelch_opts)
 decoder = BaudotDecoder()
 
-generator = decode_stream(signal_source, squelch, engine, opts, chunk_size // 4, chunk_size * 2)
+generator = decode_stream(signal_source, squelch, engine, DecodeStreamOpts(0.25, 2, decode))
 
 for received in protocol(generator, decoder):
     debug: ProtocolDebug

@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import sys
 
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import DecodeStreamOpts, SquelchOpts
 from rtty_sdr.dsp.envelope import Envelope
 from rtty_sdr.dsp.filters import PeakFilter
 
@@ -18,20 +18,18 @@ class SquelchDebug:
 class Squelch:
     def __init__(
         self,
-        opts: SystemOpts,
-        lower_thresh: float,
-        upper_thresh: float,
-        bw_safety_margin: float = 2,
+        opts: SquelchOpts
     ) -> None:
-        self.BW: Final[float] = bw_safety_margin * (opts.rtty.shift + opts.rtty.baud)
+        signal = opts.decode.signal
+        self.BW: Final[float] = opts.bw_safety_margin * (signal.rtty.shift + signal.rtty.baud)
         self.__filter = PeakFilter(
-            opts.Fs, (opts.rtty.mark + opts.rtty.space) / 2, self.BW, 4
+            signal.Fs, (signal.rtty.mark + signal.rtty.space) / 2, self.BW, 4
         )
-        self.__signal_envelope = Envelope(opts)
-        self.__full_envelope = Envelope(opts)
+        self.__signal_envelope = Envelope(signal, opts.envelopes_order)
+        self.__full_envelope = Envelope(signal, opts.envelopes_order)
         self.__last_was_squelch = True
-        self.lower_thresh: Final[float] = lower_thresh
-        self.upper_thresh: Final[float] = upper_thresh
+        self.lower_thresh: Final[float] = opts.lower_thresh
+        self.upper_thresh: Final[float] = opts.upper_thresh
         self.delay: Final[float] = self.__filter.delay
         self.squelch_delay: Final[float] = self.delay + self.__signal_envelope.delay
 

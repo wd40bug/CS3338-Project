@@ -2,12 +2,12 @@ import scipy.signal as sg
 import numpy as np
 import numpy.typing as npt
 
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import SignalOpts
 from rtty_sdr.debug.annotations import DebugAnnotations
 
 
 def internal_signal(
-    message: list[int], opts: SystemOpts, prepend_silence_s: float = 0
+    message: list[int], opts: SignalOpts, prepend_silence_s: float = 0
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], DebugAnnotations]:
     # Ensure input is strictly typed as an integer array
     msg: npt.NDArray[np.int_] = np.array(message, dtype=np.int_)

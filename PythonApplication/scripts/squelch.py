@@ -2,7 +2,7 @@ from rtty_sdr.debug.annotations import line
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
-from rtty_sdr.core.options import SystemOpts, RTTYOpts
+from rtty_sdr.core.options import DecodeCommon, SquelchOpts, SignalOpts, RTTYOpts
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
 from rtty_sdr.core.baudot import BaudotEncoder
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 Fs = 8000
 rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1)
-opts = SystemOpts(Fs, rtty)
+opts = SignalOpts(Fs, rtty)
 message = "HI"
 encoder = BaudotEncoder()
 encoded = encoder.encode(message)
@@ -22,10 +22,10 @@ signal = awgn(signal, 5)
 
 chunk_size = opts.nsamp // 5
 
-signal_source = MockSignalSource(signal, chunk_size)
-upper_thresh = 2
-lower_thresh = 0.5
-squelch = Squelch(opts, lower_thresh, upper_thresh)
+decode = DecodeCommon(5, opts)
+signal_source = MockSignalSource(signal, decode)
+sq_opts = SquelchOpts(0.5, 2, decode)
+squelch = Squelch(sq_opts)
 
 sqs = np.array([])
 
@@ -53,6 +53,6 @@ axs[0].set_title("Envelopes for squelch")
 axs[1].plot(t, snrs)
 axs[1].set_title("Calculated SNR")
 plot_shaded_squelch(t, axs[1], sqs)
-line(axs[1], 'y', [upper_thresh], 'Upper Threshold', color='r')
-line(axs[1], 'y', [lower_thresh], 'Lower Threshold', color='r')
+line(axs[1], 'y', [sq_opts.upper_thresh], 'Upper Threshold', color='r')
+line(axs[1], 'y', [sq_opts.lower_thresh], 'Lower Threshold', color='r')
 plt.show()

@@ -3,6 +3,8 @@ import numpy as np
 import numpy.typing as npt
 import sounddevice as sd
 
+from rtty_sdr.core.options import DecodeCommon
+
 
 class AudioSource(Protocol):
     def read_chunk(self) -> npt.NDArray[np.float64] | None: ...
@@ -13,9 +15,9 @@ class MockSignalSource:
     chunk_size: Final[int]
     __idx: int
 
-    def __init__(self, full_signal: npt.NDArray[np.float64], chunk_size: int):
+    def __init__(self, full_signal: npt.NDArray[np.float64], opts: DecodeCommon):
         self.signal = full_signal
-        self.chunk_size = chunk_size
+        self.chunk_size = opts.chunk_size
         self.__idx = 0
 
     def read_chunk(self) -> npt.NDArray[np.float64] | None:

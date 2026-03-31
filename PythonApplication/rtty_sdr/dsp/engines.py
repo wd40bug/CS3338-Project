@@ -5,7 +5,7 @@ import numpy.typing as npt
 from rtty_sdr.debug.debug_types import DebugCombineable
 from rtty_sdr.dsp.envelope import Envelope
 from rtty_sdr.dsp.filters import *
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import GoertzelOpts, SignalOpts, EnvelopeOpts
 
 import fastgoertzel as fg
 
@@ -20,12 +20,13 @@ class DemodulatorEngine(Protocol, Generic[T_DebugInfo]):
 
 
 class EnvelopeEngine(DemodulatorEngine):
-    def __init__(self, opts: SystemOpts):
+    def __init__(self, opts: EnvelopeOpts):
         BW_one = 1.2 * 45.45
-        self.__mark = PeakFilter(opts.Fs, opts.rtty.mark, BW_one, 4)
-        self.__space = PeakFilter(opts.Fs, opts.rtty.space, BW_one, 4)
-        self.__mark_env = Envelope(opts)
-        self.__space_env = Envelope(opts)
+        signal_opts = opts.decode.signal
+        self.__mark = PeakFilter(signal_opts.Fs, signal_opts.rtty.mark, BW_one, 4)
+        self.__space = PeakFilter(signal_opts.Fs, signal_opts.rtty.space, BW_one, 4)
+        self.__mark_env = Envelope(signal_opts, opts.envelopes_order)
+        self.__space_env = Envelope(signal_opts, opts.envelopes_order)
         self.delay: Final[float] = self.__mark.delay + self.__mark_env.delay
 
     def process(
@@ -43,21 +44,19 @@ class EnvelopeEngine(DemodulatorEngine):
 
 
 class GoertzelEngine(DemodulatorEngine):
-    opts: Final[SystemOpts]
+    opts: Final[SignalOpts]
     overlap_size: Final[int]
     dft_block_size: Final[int]
     __overlap: npt.NDArray[np.float64]
 
     def __init__(
         self,
-        overlap_size: int,
-        dft_block_size: int,
-        opts: SystemOpts,
+        opts: GoertzelOpts
     ):
-        self.opts = opts
-        self.overlap_size = overlap_size
-        self.dft_block_size = dft_block_size
-        self.__overlap = np.zeros(overlap_size)
+        self.opts = opts.decode.signal
+        self.overlap_size =  opts.overlap_size
+        self.dft_block_size = opts.dft_len
+        self.__overlap = np.zeros(self.overlap_size)
 
     @staticmethod
     def goertzel(
