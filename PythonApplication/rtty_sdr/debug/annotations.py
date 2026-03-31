@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal
+from matplotlib.transforms import Transform
 from typing_extensions import Iterable
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
@@ -16,32 +17,36 @@ def line(
     **kwargs,
 ) -> None:
     for val in vals:
+        xval: float
+        yval: float
+        transform: Transform
+        rotation: float
+        ha: str
         if axis == "x":
             ax.axvline(x=val, **kwargs)
-            ax.text(
-                val,
-                1,
-                label,
-                color=kwargs.get("color"),
-                ha="right",
-                va="top",
-                rotation=90,
-                fontweight="bold",
-                transform=plt.gca().get_xaxis_transform(),
-            )
+            xval = val
+            yval = 1
+            transform = ax.get_xaxis_transform()
+            rotation = 90
+            ha = "right"
         else:
             ax.axhline(y=val, **kwargs)
-            ax.text(
-                0,
-                val,
-                label,
-                color=kwargs["color"],
-                ha="right",
-                va="top",
-                rotation=90,
-                fontweight="bold",
-                transform=plt.gca().get_yaxis_transform(),
-            )
+            xval = 0
+            yval = val
+            transform = ax.get_yaxis_transform()
+            rotation = 0
+            ha = "left"
+        ax.text(
+            xval,
+            yval,
+            label,
+            color=kwargs.get("color"),
+            ha=ha,
+            va="top",
+            rotation=rotation,
+            fontweight="bold",
+            transform=transform,
+        )
 
 
 @dataclass

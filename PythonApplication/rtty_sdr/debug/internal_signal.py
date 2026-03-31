@@ -5,8 +5,9 @@ import numpy.typing as npt
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.debug.annotations import DebugAnnotations
 
+
 def internal_signal(
-    message: list[int], opts: SystemOpts
+    message: list[int], opts: SystemOpts, prepend_silence_s: float = 0
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], DebugAnnotations]:
     # Ensure input is strictly typed as an integer array
     msg: npt.NDArray[np.int_] = np.array(message, dtype=np.int_)
@@ -39,15 +40,22 @@ def internal_signal(
     # Apply template
     message_symbols: npt.NDArray[np.int_] = np.repeat(message_stream, template)
 
-    # Add pre-message stops
-    pre_message_samples: int = int(opts.rtty.stop_bits * opts.rtty.pre_msg_stops * opts.nsamp)
+    # Add pre and post-message stops
+    pre_message_samples: int = int(
+        opts.rtty.stop_bits * opts.rtty.pre_msg_stops * opts.nsamp
+    )
+    post_message_samples: int = int(
+        opts.rtty.stop_bits * opts.rtty.post_msg_stops * opts.nsamp
+    )
     pre_message_symbols: npt.NDArray[np.int_] = np.ones(
         pre_message_samples, dtype=np.int_
     )
-
+    post_message_symbols: npt.NDArray[np.int_] = np.ones(
+        post_message_samples, dtype=np.int_
+    )
     # Note: np.concatenate is generally safer across numpy versions than np.concat
     symbols: npt.NDArray[np.int_] = np.concatenate(
-        (pre_message_symbols, message_symbols)
+        (pre_message_symbols, message_symbols, post_message_symbols)
     )
     total_samples: int = len(symbols)
 
@@ -64,7 +72,9 @@ def internal_signal(
     t_local: npt.NDArray[np.float64] = (sample_indices - block_starts) / opts.Fs
 
     # Map frequencies and modulate
-    f_array: npt.NDArray[np.float64] = np.where(symbols == 1, opts.rtty.mark, opts.rtty.space)
+    f_array: npt.NDArray[np.float64] = np.where(
+        symbols == 1, opts.rtty.mark, opts.rtty.space
+    )
     modulated_signal: npt.NDArray[np.float64] = sg.square(2 * np.pi * f_array * t_local)
 
     # Calculate annotation labels
@@ -74,16 +84,25 @@ def internal_signal(
     ).astype(np.int_)
 
     start_indices: npt.NDArray[np.int_] = frame_starts
-    stop_indices: npt.NDArray[np.int_] = frame_starts + int(
-        opts.rtty.bits_per_character - opts.rtty.stop_bits
-    ) * opts.nsamp
+    stop_indices: npt.NDArray[np.int_] = (
+        frame_starts
+        + int(opts.rtty.bits_per_character - opts.rtty.stop_bits) * opts.nsamp
+    )
     data_offsets = np.arange(1, 6, dtype=np.int_) * samples_per_bit + (
         samples_per_bit // 2
     )
     data_indices = (frame_starts[:, None] + data_offsets).flatten()
 
+    # Prepend silence
+    silence_len = int(prepend_silence_s * opts.Fs)
+    final_signal = np.concat((np.zeros(silence_len), modulated_signal))
+
     return (
-        modulated_signal,
-        sample_indices / opts.Fs,
-        DebugAnnotations(start_indices, stop_indices, data_indices),
+        final_signal,
+        np.arange(silence_len + total_samples) / opts.Fs,
+        DebugAnnotations(
+            start_indices + silence_len,
+            stop_indices + silence_len,
+            data_indices + silence_len,
+        ),
     )

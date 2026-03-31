@@ -8,6 +8,7 @@ class RTTYOpts:
     mark: int = 2125
     shift: int = 170
     pre_msg_stops: int = 0
+    post_msg_stops: int = 0
 
     data_bits: Final[int] = 5
 

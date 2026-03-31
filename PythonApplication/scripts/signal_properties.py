@@ -9,7 +9,7 @@ from rtty_sdr.core.baudot import BaudotEncoder
 
 Fs = 8000
 
-rtty = RTTYOpts(baud=10, mark=50, shift=50, pre_msg_stops=1)
+rtty = RTTYOpts(baud=10, mark=50, shift=50, pre_msg_stops=1, post_msg_stops=1)
 opts = SystemOpts(Fs, rtty)
 
 message = "HI"
@@ -18,7 +18,7 @@ encoder = BaudotEncoder()
 
 encoded = encoder.encode(message)
 
-signal, t, annotations = internal_signal(encoded, opts)
+signal, t, annotations = internal_signal(encoded, opts, 0.1)
 
 fig = plt.figure()
 plt.plot(t, signal)

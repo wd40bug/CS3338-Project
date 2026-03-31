@@ -13,4 +13,3 @@ def plot_shaded_squelch(x: npt.NDArray[np.float64], ax: Axes, squelch: npt.NDArr
         alpha=0.2,
         label="Squelched region"
     )
-    ax.legend()

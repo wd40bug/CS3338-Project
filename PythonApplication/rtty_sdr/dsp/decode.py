@@ -1,8 +1,10 @@
+from enum import IntEnum, auto
 from typing import Literal, Iterator, Iterable
 
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
+from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.engines import DemodulatorEngine
 from rtty_sdr.core.options import SystemOpts
@@ -10,59 +12,98 @@ from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.debug_types import DebugCombineable
 
-type DecodeYield = Literal["reset"] | tuple[int, DecodeDebug]
+type DecodeYield = tuple[Literal["reset"] | Literal["end"] | int, DecodeDebug]
+
+
+class DecodeState(IntEnum):
+    NO_SIGNAL = auto()
+    IDLE = auto()
+    START = auto()
+    DATA = auto()
+    STOP = auto()
+
 
 def decode_stream(
-    source: AudioSource, squelch: Squelch, engine: DemodulatorEngine, opts: SystemOpts
+    source: AudioSource,
+    squelch: Squelch,
+    engine: DemodulatorEngine,
+    opts: SystemOpts,
+    squelch_grace_period: int,
+    awaited_idle_len: int,
 ) -> Iterator[DecodeYield]:
     countdown: None | int = None
-    state: Literal["no_signal", "idle", "start", "data", "stop"] = "start"
+    state: DecodeState = DecodeState.NO_SIGNAL
     current_word: list[bool] = []
 
-    builder = DecodeDebugBuilder()
+    builder = DecodeDebugBuilder(state)
+
+    squelch_count = 0
+    idle_len = 0
 
     while True:
         raw_audio = source.read_chunk()
         if raw_audio is None:
+            yield ("end", builder.finish())
             return
 
         filtered_audio, squelch_arr, _ = squelch.process(raw_audio)
 
         samples, _ = engine.process(filtered_audio)
-        
+
         # Give the chunk to the builder
         builder.load_frame(raw_audio, samples, squelch_arr)
 
-        for i, (sample, _) in enumerate(zip(samples, squelch_arr)):
-            # TODO: squelch logic with sq_val
-
+        for i, (sample, sq) in enumerate(zip(samples, squelch_arr)):
             if countdown is not None and countdown > 0:
                 countdown -= 1
                 continue
 
+            # Squelch
+            if sq:
+                squelch_count += 1
+                if squelch_count > squelch_grace_period:
+                    if state != DecodeState.NO_SIGNAL and state != DecodeState.IDLE:
+                        # Lost signal, reset protocol
+                        yield ("reset", builder.build(i, DecodeState.NO_SIGNAL))
+                    state = DecodeState.NO_SIGNAL
+                continue
+            else:
+                squelch_count = 0
+
             match state:
-                case "no_signal" | "idle":
-                    pass
-                case "start":
+                case DecodeState.NO_SIGNAL:
+                    if not sq:
+                        state = DecodeState.IDLE
+                        builder.change_state(i, state)
+                case DecodeState.IDLE:
+                    if sample > 0:
+                        idle_len += 1
+                        if idle_len >= awaited_idle_len:
+                            state = DecodeState.START
+                            builder.change_state(i, state)
+                    else:
+                        idle_len = 0
+                case DecodeState.START:
                     if sample < 0:
                         builder.start_bit(i)
-                        state = "data"
+                        state = DecodeState.DATA
+                        builder.change_state(i, state)
                         countdown = round(1.5 * opts.nsamp)
                         current_word.clear()
-                case "data":
+                case DecodeState.DATA:
                     current_word.append(sample > 0)
                     builder.data_bit(i)
                     countdown = opts.nsamp
                     if len(current_word) == 5:
-                        state = "stop"
-                case "stop":
+                        state = DecodeState.STOP
+                        builder.change_state(i, state)
+                case DecodeState.STOP:
                     code = sum(
                         bit * (2**j) for j, bit in enumerate(reversed(current_word))
                     )
-                    
-                    yield (code, builder.build(i))
-                    
-                    state = "start"
+
+                    state = DecodeState.START
+                    yield (code, builder.build(i, state))
                     countdown = None
 
         # Loop finished, save remaining unbuilt data and advance the absolute clock
@@ -76,16 +117,21 @@ class DecodeDebug(DebugCombineable):
     envelope: npt.NDArray[np.float64]
     squelch: npt.NDArray[np.int_]
     annotations: DebugAnnotations
+    states: list[DecodeState]
 
     @classmethod
     def combine(cls, debugs: Iterable[DecodeDebug]) -> DecodeDebug:
         debug_list = list(debugs)
-        
+
         if not debug_list:
             # Return an empty instance if the iterable is empty
             return cls(
-                np.array([]), np.array([]), np.array([]), np.array([]),
-                DebugAnnotations(np.array([]), np.array([]), np.array([]))
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                DebugAnnotations(np.array([]), np.array([]), np.array([])),
+                [],
             )
 
         # Concat the arrays
@@ -94,7 +140,8 @@ class DecodeDebug(DebugCombineable):
             signal=np.concatenate([d.signal for d in debug_list]),
             envelope=np.concatenate([d.envelope for d in debug_list]),
             squelch=np.concatenate([d.squelch for d in debug_list]),
-            annotations=DebugAnnotations.combine([d.annotations for d in debug_list])
+            annotations=DebugAnnotations.combine([d.annotations for d in debug_list]),
+            states=[state for d in debugs for state in d.states],
         )
 
 
@@ -108,22 +155,22 @@ class StreamData:
         return len(self.signal)
 
     def __getitem__(self, key: slice | int) -> StreamData:
-        return StreamData(
-            self.signal[key],
-            self.envelope[key],
-            self.squelch[key]
-        )
+        return StreamData(self.signal[key], self.envelope[key], self.squelch[key])
+
 
 class DecodeDebugBuilder:
-    def __init__(self) -> None:
+    def __init__(self, default_state: DecodeState) -> None:
         self.__start_index: int = 0
         self.__accumulated_data: list[StreamData] = []
+
+        # Annotations
         self.__start_bit: int | None = None
         self.__data_bits: list[int] = []
+        self.__state_changes: StateChanges[DecodeState] = StateChanges(default_state)
 
         # Current frame state
-        self.__frame_index: int = 0  
-        self.__frame_consumed: int = 0 
+        self.__frame_index: int = 0
+        self.__frame_consumed: int = 0
         self.__frame_data: StreamData | None = None
 
     def load_frame(
@@ -142,17 +189,27 @@ class DecodeDebugBuilder:
     def data_bit(self, i: int) -> None:
         self.__data_bits.append(i + self.__frame_index)
 
+    def change_state(self, i: int, new_state: DecodeState) -> None:
+        self.__state_changes.change(i + self.__frame_index, new_state)
+
     def commit_frame(self) -> None:
         if self.__frame_data:
             if self.__frame_consumed < len(self.__frame_data):
-                self.__accumulated_data.append(self.__frame_data[self.__frame_consumed:])
+                self.__accumulated_data.append(
+                    self.__frame_data[self.__frame_consumed :]
+                )
 
             self.__frame_index += len(self.__frame_data)
             self.__frame_data = None  # Clear for the assert in load_frame
 
-    def build(self, i: int) -> DecodeDebug:
+    def finish(self) -> DecodeDebug:
+        return self.build(-1, DecodeState.NO_SIGNAL, stop_bit=False)
+
+    def build(self, i: int, state: DecodeState, stop_bit: bool = True) -> DecodeDebug:
         if self.__frame_data:
-            self.__accumulated_data.append(self.__frame_data[self.__frame_consumed : i + 1])
+            self.__accumulated_data.append(
+                self.__frame_data[self.__frame_consumed : i + 1]
+            )
 
         start_bits = (
             np.array([self.__start_bit])
@@ -160,9 +217,21 @@ class DecodeDebugBuilder:
             else np.array([])
         )
 
-        signal_arr = np.concatenate([d.signal for d in self.__accumulated_data]) if self.__accumulated_data else np.array([])
-        envelope_arr = np.concatenate([d.envelope for d in self.__accumulated_data]) if self.__accumulated_data else np.array([])
-        squelch_arr = np.concatenate([d.squelch for d in self.__accumulated_data]) if self.__accumulated_data else np.array([])
+        signal_arr = (
+            np.concatenate([d.signal for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else np.array([])
+        )
+        envelope_arr = (
+            np.concatenate([d.envelope for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else np.array([])
+        )
+        squelch_arr = (
+            np.concatenate([d.squelch for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else np.array([])
+        )
 
         ret = DecodeDebug(
             np.arange(self.__start_index, self.__frame_index + i + 1),
@@ -171,11 +240,21 @@ class DecodeDebugBuilder:
             squelch_arr,
             DebugAnnotations(
                 start_bits,
-                np.array([i + self.__frame_index]),
+                np.array([i + self.__frame_index]) if stop_bit else np.array([]),
                 np.array(self.__data_bits),
             ),
+            self.__state_changes.build(i + self.__frame_index, state),
         )
-        
+        assert (
+            len(ret.indices)
+            == len(ret.signal)
+            == len(ret.envelope)
+            == len(ret.squelch)
+            == len(ret.states)
+        ), (
+            f"Values mismatched. Expected all to be equal:\nindicies: {len(ret.indices)}\nsignal: {len(ret.signal)}\nenvelope: {len(ret.envelope)}\nsquelch: {len(ret.squelch)}\nstates: {len(ret.states)}\n"
+        )
+
         self.__start_index = i + self.__frame_index + 1
         self.__accumulated_data.clear()
         self.__start_bit = None
