@@ -5,12 +5,14 @@ import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
 from rtty_sdr.debug.state_changes import StateChanges
+from rtty_sdr.dsp.poisonPill import NonePoisonPill, PoisonPill
 from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.engines import DemodulatorEngine
 from rtty_sdr.core.options import DecodeStreamOpts
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.debug_types import DebugCombineable
+import time
 
 type DecodeYield = tuple[Literal["reset"] | Literal["end"] | int, DecodeDebug]
 
@@ -27,7 +29,8 @@ def decode_stream(
     source: AudioSource,
     squelch: Squelch,
     engine: DemodulatorEngine,
-    opts: DecodeStreamOpts
+    opts: DecodeStreamOpts,
+    pill: PoisonPill
 ) -> Iterator[DecodeYield]:
     signal_opts = opts.decode.signal
     countdown: None | int = None
@@ -41,9 +44,14 @@ def decode_stream(
 
     while True:
         raw_audio = source.read_chunk()
-        if raw_audio is None:
+        pill_val = pill.check()
+        if pill_val == "stop":
             yield ("end", builder.finish())
             return
+
+        if raw_audio is None:
+            time.sleep(opts.none_friction)
+            continue
 
         filtered_audio, squelch_arr, _ = squelch.process(raw_audio)
 
