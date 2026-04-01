@@ -1,15 +1,17 @@
 import serial
 import time
 
+
 # Open serial connection
-esp = serial.Serial(port = 'COM3', baudrate = 115200, timeout = .1)
+esp = serial.Serial(port = 'COM3', baudrate = 115200)
 time.sleep(0.05)
+esp.reset_input_buffer()
+time.sleep(0.2)
 
-def send_byte(c):
-    esp.write(bytes([c]))
-    time.sleep(0.05)
+def send_serial(json: str):
+    esp.write(bytes(json, 'utf-8'))
 
-msg = [20, 6]
+def read_serial():
+    line = esp.readline()
+    return line.decode()
 
-for i in msg:
-    send_byte(i)
