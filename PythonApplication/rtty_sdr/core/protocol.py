@@ -3,11 +3,14 @@ from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import crcmod.predefined
 from typing import Final, Iterator, Self
 from enum import IntEnum, auto
+from rtty_sdr.debug.debug_types import DebugCombineable
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.decode import DecodeYield, DecodeDebug
 import numpy as np
 import numpy.typing as npt
 import msgspec
+
+from rtty_sdr.dsp.poisonPill import Command
 
 LengthLen: Final[int] = 2
 ChecksumLen: Final[int] = 4
@@ -51,11 +54,13 @@ class SendMessage(ProtocolMessage, frozen=True):
             codes=codes,
         )
 
+
 class ProtocolState(IntEnum):
     Length = auto()
     Data = auto()
     Checksum = auto()
     Callsign = auto()
+
 
 class ProtocolDebug(msgspec.Struct, frozen=True):
     decode: DecodeDebug
@@ -63,9 +68,13 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
 
     @classmethod
     def create(cls, decode: list[DecodeDebug], states: list[ProtocolState]) -> Self:
+        return cls(decode=DecodeDebug.combine(decode), states=states)
+
+    @classmethod
+    def combine(cls, debugs: list[Self]) -> Self:
         return cls(
-            decode=DecodeDebug.combine(decode),
-            states=states
+            decode=DecodeDebug.combine([d.decode for d in debugs]),
+            states=[state for d in debugs for state in d.states],
         )
 
 
@@ -96,14 +105,18 @@ class RecvMessage(ProtocolMessage, frozen=True):
             checksum=checksum,
             calculatedChecksum=calculatedChecksum,
             validChecksum=calculatedChecksum == checksum,
-            debug = ProtocolDebug.create(decode_debug, states)
+            debug=ProtocolDebug.create(decode_debug, states),
         )
 
+
+class StoppedMsg(msgspec.Struct, frozen=True):
+    debug: ProtocolDebug
+    cmd: Command
 
 
 def protocol(
     code_generator: Iterable[DecodeYield], decoder: BaudotDecoder
-) -> Iterator[RecvMessage | ProtocolDebug]:
+) -> Iterator[RecvMessage | StoppedMsg]:
     state: ProtocolState = ProtocolState.Length
     chars = ""
     data_length = 0
@@ -112,17 +125,34 @@ def protocol(
     checksum_start_idx = 0
     states = StateChanges(state)
 
-    for code, resp_debug in code_generator:
+    for resp, resp_debug in code_generator:
+        # print(f"Got {resp.kind} from code_generator")
         debugs.append(resp_debug)
-        if code == "reset":
+        if resp.kind == "lost_signal":
             state = ProtocolState.Length
             states.change(resp_debug.indices[-1], state)
             chars = ""
             continue
-        if code == "end":
-            yield ProtocolDebug.create(debugs, states.build(resp_debug.indices[-1], ProtocolState.Length))
+        elif resp.kind == "command":
+            if resp.command.command == "restart":
+                yield StoppedMsg(
+                    debug=ProtocolDebug.create(
+                        debugs,
+                        states.build(resp_debug.indices[-1], ProtocolState.Length),
+                    ),
+                    cmd=resp.command,
+                )
+            elif resp.command.command == "stop":
+                yield StoppedMsg(
+                    debug=ProtocolDebug.create(
+                        debugs,
+                        states.build(resp_debug.indices[-1], ProtocolState.Length),
+                    ),
+                    cmd=resp.command,
+                )
             return
-            
+        code = resp.code
+
         codes.append(code)
         char = decoder.decode(code)
         if char == "":
@@ -166,8 +196,6 @@ def protocol(
                         checksum_start_idx,
                         checksum,
                         debugs,
-                        states.build(
-                            resp_debug.indices[-1], state
-                        ),
+                        states.build(resp_debug.indices[-1], state),
                     )
                     debugs.clear()

@@ -5,7 +5,7 @@ import sounddevice as sd
 import queue
 
 from rtty_sdr.core.options import DecodeCommon
-from rtty_sdr.dsp.poisonPill import PillQueue
+from rtty_sdr.dsp.poisonPill import CommandsQueueQueue, FullStopCommand
 
 class AudioSource(Protocol):
     def read_chunk(self) -> npt.NDArray[np.float64] | None: ...
@@ -17,7 +17,7 @@ class MockSignalSource:
         initial: npt.NDArray[np.float64],
         opts: DecodeCommon,
         queue: queue.Queue[npt.NDArray[np.float64]] | None = None,
-        pill_queue: PillQueue | None = None
+        pill_queue: CommandsQueueQueue | None = None
     ):
         self.__buffer: npt.NDArray[np.float64] = initial
         self.chunk_size: Final[int] = opts.chunk_size
@@ -40,11 +40,13 @@ class MockSignalSource:
 
         if len(self.__buffer) == 0:
             if self.__pill_queue is not None:
-                self.__pill_queue.put('stop')
+                self.__pill_queue.put(FullStopCommand())
             return None
 
-        chunk = self.__buffer[:self.chunk_size]
-        self.__buffer = self.__buffer[self.chunk_size:]
+        chunk_size = min(len(self.__buffer), self.chunk_size)
+        # print(f"[DEBUG]: Sending {chunk_size} samples")
+        chunk = self.__buffer[:chunk_size]
+        self.__buffer = self.__buffer[chunk_size:]
 
         return chunk
 

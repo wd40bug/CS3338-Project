@@ -11,7 +11,7 @@ class ToESP:
 
     def __init__(self, opts: RTTYOpts, msg: ProtocolMessage):
         self.options = opts
-        self.message = msg
+        self.message = msg.codes
 
 
 def createJSON(info: ToESP):

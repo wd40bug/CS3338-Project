@@ -1,16 +1,19 @@
 # from dataclasses import dataclass, field
-from typing import Final, Literal, ClassVar
+from typing import Final, Literal, ClassVar, Self
 
 from msgspec import Struct
 
+from rtty_sdr.core.baudot import Shift
+
 
 class RTTYOpts(Struct, frozen=True):
-    stop_bits: float = 1.5
-    baud: float = 45.45
-    mark: int = 2125
-    shift: int = 170
-    pre_msg_stops: int = 0
-    post_msg_stops: int = 0
+    stop_bits: float
+    baud: float
+    mark: int
+    shift: int
+    pre_msg_stops: int
+    post_msg_stops: int
+    initial_shift: Shift
 
     data_bits: ClassVar[Final[int]] = 5
 
@@ -59,6 +62,7 @@ class GoertzelOpts(Struct, frozen=True):
 
 
 class EnvelopeOpts(Struct, frozen=True):
+    order: int
     envelopes_order: int
     decode: DecodeCommon
 
@@ -66,10 +70,10 @@ class EnvelopeOpts(Struct, frozen=True):
 class SquelchOpts(Struct, frozen=True):
     lower_thresh: float
     upper_thresh: float
+    order: int
+    envelopes_order: int
+    bw_safety_margin: float
     decode: DecodeCommon
-    order: int = 4
-    envelopes_order: int = 4
-    bw_safety_margin: float = 2
 
 
 class DecodeStreamOpts(Struct, frozen=True):
@@ -104,24 +108,70 @@ class SystemOpts(Struct, frozen=True):
     source: Literal["microphone", "internal"]
 
     @classmethod
-    def default(cls) -> SystemOpts:
-        rtty = RTTYOpts()
-        signal = SignalOpts(Fs=8000, rtty=rtty)
-        decode = DecodeCommon(oversampling=5, signal=signal)
+    def default(
+        cls,
+        stop_bits: float = 1.5,
+        baud: float = 45.45,
+        mark: int = 2125,
+        shift: int = 170,
+        pre_msg_stops: int = 1,
+        post_msg_stops: int = 1,
+        initial_shift: Shift = Shift.FIGS,
+        Fs: int = 8000,
+        oversampling: int = 5,
+        envelope_generator_order: int = 4,
+        envelope_generator_envelopes_order: int = 4,
+        overlap_ratio: float = 0.5,
+        dft_len: int = 256,
+        lower_thresh: float = 0.2,
+        upper_thresh: float = 2,
+        squelch_order: int = 4,
+        squelch_envelopes_order: int = 4,
+        bw_safety_margin: float = 2,
+        squelch_grace_percent: float = 0.25,
+        idle_bits: float = 2,
+        none_friction: float = 0.1,
+        engine: Literal["goertzel", "envelope"] = "goertzel",
+        source: Literal["microphone", "internal"] = "microphone",
+    ) -> Self:
+        rtty = RTTYOpts(
+            stop_bits=stop_bits,
+            baud=baud,
+            mark=mark,
+            shift=shift,
+            pre_msg_stops=pre_msg_stops,
+            post_msg_stops=post_msg_stops,
+            initial_shift=initial_shift,
+        )
+        signal = SignalOpts(Fs=Fs, rtty=rtty)
+        decode = DecodeCommon(oversampling=oversampling, signal=signal)
 
         return cls(
             rtty=rtty,
             signal=signal,
             decode=decode,
-            envelope=EnvelopeOpts(envelopes_order=4, decode=decode),
-            goertzel=GoertzelOpts(overlap_ratio=0.5, dft_len=256, decode=decode),
-            squelch=SquelchOpts(lower_thresh=0.2, upper_thresh=2, decode=decode),
-            stream=DecodeStreamOpts(
-                squelch_grace_percent=0.25,
-                idle_bits=2,
+            envelope=EnvelopeOpts(
+                envelopes_order=envelope_generator_envelopes_order,
                 decode=decode,
-                none_friction=0.1,
+                order=envelope_generator_order,
             ),
-            engine="goertzel",
-            source="microphone",
+            goertzel=GoertzelOpts(
+                overlap_ratio=overlap_ratio, dft_len=dft_len, decode=decode
+            ),
+            squelch=SquelchOpts(
+                lower_thresh=lower_thresh,
+                upper_thresh=upper_thresh,
+                decode=decode,
+                order=squelch_order,
+                envelopes_order=squelch_envelopes_order,
+                bw_safety_margin=bw_safety_margin
+            ),
+            stream=DecodeStreamOpts(
+                squelch_grace_percent=squelch_grace_percent,
+                idle_bits=idle_bits,
+                decode=decode,
+                none_friction=none_friction,
+            ),
+            engine=engine,
+            source=source,
         )

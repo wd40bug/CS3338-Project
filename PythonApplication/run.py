@@ -39,7 +39,7 @@ class MockProcess(mp.Process):
             pass
 
 
-settings = SystemOpts.default()
+settings = SystemOpts.default(source='internal')
 # ------------------------------------------------------
 
 
@@ -52,7 +52,7 @@ class AppRunner:
         threads: list[threading.Thread],
     ) -> None:
         # Keep track of processes so we can cleanly terminate them later
-        self.__ui = MockUI()
+        self.__ui = MockUI(settings)
         self.__broker = BrokerModule()
         self.__processes: Final[List[mp.Process]] = processes
         self.__threads: Final[list[threading.Thread]] = threads

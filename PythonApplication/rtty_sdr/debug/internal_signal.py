@@ -1,3 +1,4 @@
+import msgspec
 import scipy.signal as sg
 import numpy as np
 import numpy.typing as npt
@@ -106,3 +107,6 @@ def internal_signal(
             data_indices + silence_len,
         ),
     )
+
+class InternalSignalMsg(msgspec.Struct, frozen=True):
+    signal: npt.NDArray[np.float64]

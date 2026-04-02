@@ -5,7 +5,7 @@ from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import PillQueue, QueuePoisonPill
+from rtty_sdr.dsp.poisonPill import PillQueue, CommandsQueue
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
@@ -58,7 +58,7 @@ generator = decode_stream(
     DecodeStreamOpts(
         squelch_grace_percent=0.25, idle_bits=2, none_friction=0.2, decode=decode
     ),
-    QueuePoisonPill(pill_queue),
+    CommandsQueue(pill_queue),
 )
 
 num_received = 0

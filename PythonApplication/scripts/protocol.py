@@ -5,7 +5,7 @@ from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import PillQueue, QueuePoisonPill
+from rtty_sdr.dsp.poisonPill import PillQueue, CommandsQueue
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
@@ -41,7 +41,7 @@ signal = awgn(signal, 10)
 
 decode = DecodeCommon(oversampling=5, signal=opts)
 pill_queue: PillQueue = queue.Queue()
-pills = QueuePoisonPill(pill_queue)
+pills = CommandsQueue(pill_queue)
 signal_source = MockSignalSource(signal, decode, None, pill_queue)
 
 # engine = GoertzelEngine(GoertzelOpts(0.5, 256, decode))

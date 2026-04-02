@@ -1,30 +1,49 @@
-from typing import Iterator, Protocol, Literal
+from typing import Annotated, Iterator, Protocol, Literal
 import queue
+import msgspec
 import numpy as np
 import numpy.typing as npt
+from pydantic import BaseModel, ConfigDict, Field
+
+from rtty_sdr.core.options import SystemOpts
 
 
-class PoisonPill(Protocol):
-    def check(self) -> None | Literal["stop"]:
-        ...
+class RestartCommand(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    command: Literal["restart"] = "restart"
+    new_settings: SystemOpts
 
-class NonePoisonPill(PoisonPill):
-    def check(self) -> None | Literal["stop"]:
+
+class FullStopCommand(BaseModel):
+    command: Literal["stop"] = "stop"
+
+
+type Command = Annotated[
+    RestartCommand | FullStopCommand, Field(discriminator="command")
+]
+
+
+class Commands(Protocol):
+    def check(self) -> None | Command: ...
+
+
+class NoCommands(Commands):
+    def check(self) -> None | Command:
         return None
 
-type PillQueue = queue.Queue[Literal["stop"]]
-class QueuePoisonPill(PoisonPill):
-    def __init__(self, queue: PillQueue):
+
+type CommandsQueueQueue = queue.Queue[Command]
+
+
+class CommandsQueue(Commands):
+    def __init__(self, queue: CommandsQueueQueue):
         self.__queue = queue
 
-    def check(self) -> None | Literal["stop"]:
+    def check(self) -> None | Command:
         try:
             cmd = self.__queue.get_nowait()
             self.__queue.task_done()
-            
-            if cmd == "stop":
-                return "stop"
-            else:
-                raise ValueError(f"Unknown Command: {cmd}")
+
+            return cmd
         except queue.Empty:
             return None
