@@ -1,17 +1,13 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
 from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import crcmod.predefined
-from typing import Final, Iterator
+from typing import Final, Iterator, Self
 from enum import IntEnum, auto
-from rtty_sdr.debug.debug_types import DebugCombineable
 from rtty_sdr.debug.state_changes import StateChanges
-from rtty_sdr.dsp.decode import DecodeState, DecodeYield, DecodeDebug
-from rtty_sdr.debug.annotations import DebugAnnotations
+from rtty_sdr.dsp.decode import DecodeYield, DecodeDebug
 import numpy as np
 import numpy.typing as npt
-
-from rtty_sdr.dsp.squelch import SquelchDebug
+import msgspec
 
 LengthLen: Final[int] = 2
 ChecksumLen: Final[int] = 4
@@ -24,8 +20,7 @@ def calculate_checksum(codes: list[int]) -> int:
     return crc16_xmodem(bytes(codes))
 
 
-@dataclass(frozen=True)
-class ProtocolMessage:
+class ProtocolMessage(msgspec.Struct, frozen=True):
     msg: str
     callsign: str
     encoding: str
@@ -33,35 +28,55 @@ class ProtocolMessage:
     checksum: int
 
 
-class SendMessage(ProtocolMessage):
-    def __init__(
-        self,
+class SendMessage(ProtocolMessage, frozen=True):
+    @classmethod
+    def create(
+        cls,
         msg: str,
         callsign: str,
         encoder: BaudotEncoder,
         replace_invalid_with: str | None = None,
-    ) -> None:
+    ) -> Self:
         length_str = f"{len(msg):02x}"
         pre_checksum = encoder.encode(length_str + msg, replace_invalid_with)
         checksum = calculate_checksum(pre_checksum)
         checksum_str = f"{checksum:4x}".upper()
         encoding = f"{length_str}{msg.upper()}{checksum_str}{callsign.upper()}"
         codes = pre_checksum + encoder.encode(checksum_str + callsign)
-        super().__init__(msg, callsign, encoding, codes, checksum)
+        return cls(
+            msg=msg,
+            callsign=callsign,
+            checksum=checksum,
+            encoding=encoding,
+            codes=codes,
+        )
+
+class ProtocolState(IntEnum):
+    Length = auto()
+    Data = auto()
+    Checksum = auto()
+    Callsign = auto()
+
+class ProtocolDebug(msgspec.Struct, frozen=True):
+    decode: DecodeDebug
+    states: list[ProtocolState]
+
+    @classmethod
+    def create(cls, decode: list[DecodeDebug], states: list[ProtocolState]) -> Self:
+        return cls(
+            decode=DecodeDebug.combine(decode),
+            states=states
+        )
 
 
-class ProtocolDebug:
-    def __init__(self, decode: list[DecodeDebug], states: list[ProtocolState]) -> None:
-        self.decode = DecodeDebug.combine(decode)
-        self.states = states
+class RecvMessage(ProtocolMessage, frozen=True):
+    calculatedChecksum: int
+    validChecksum: bool
+    debug: ProtocolDebug
 
-
-class RecvMessage(ProtocolMessage):
-    calculatedChecksum: Final[int]
-    validChecksum = Final[bool]
-
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         msg: str,
         callsign: str,
         encoding: str,
@@ -70,18 +85,20 @@ class RecvMessage(ProtocolMessage):
         checksum_str: str,
         decode_debug: list[DecodeDebug],
         states: list[ProtocolState],
-    ):
+    ) -> Self:
         checksum = int(checksum_str, 16)
-        super().__init__(msg, callsign, encoding, codes, checksum)
-        self.calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
-        self.validChecksum = self.calculatedChecksum == self.checksum
-        self.debug: ProtocolDebug = ProtocolDebug(decode_debug, states)
+        calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
+        return cls(
+            msg=msg,
+            callsign=callsign,
+            encoding=encoding,
+            codes=codes,
+            checksum=checksum,
+            calculatedChecksum=calculatedChecksum,
+            validChecksum=calculatedChecksum == checksum,
+            debug = ProtocolDebug.create(decode_debug, states)
+        )
 
-class ProtocolState(IntEnum):
-    Length = auto()
-    Data = auto()
-    Checksum = auto()
-    Callsign = auto()
 
 
 def protocol(
@@ -91,7 +108,7 @@ def protocol(
     chars = ""
     data_length = 0
     codes = []
-    debugs = []
+    debugs: list[DecodeDebug] = []
     checksum_start_idx = 0
     states = StateChanges(state)
 
@@ -103,7 +120,7 @@ def protocol(
             chars = ""
             continue
         if code == "end":
-            yield ProtocolDebug(debugs, states.build(resp_debug.indices[-1], ProtocolState.Length))
+            yield ProtocolDebug.create(debugs, states.build(resp_debug.indices[-1], ProtocolState.Length))
             return
             
         codes.append(code)
@@ -141,7 +158,7 @@ def protocol(
                     ]
                     callsign = chars[LengthLen + data_length + ChecksumLen :]
                     state = ProtocolState.Length
-                    yield RecvMessage(
+                    yield RecvMessage.create(
                         msg,
                         callsign,
                         chars,

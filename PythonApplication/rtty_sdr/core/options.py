@@ -1,10 +1,10 @@
 # from dataclasses import dataclass, field
-from typing import Final, Literal
-from pydantic.dataclasses import dataclass
-from pydantic.fields import Field
+from typing import Final, Literal, ClassVar
 
-@dataclass
-class RTTYOpts():
+from msgspec import Struct
+
+
+class RTTYOpts(Struct, frozen=True):
     stop_bits: float = 1.5
     baud: float = 45.45
     mark: int = 2125
@@ -12,7 +12,7 @@ class RTTYOpts():
     pre_msg_stops: int = 0
     post_msg_stops: int = 0
 
-    data_bits: Final[int] = Field(init=False, default=5)
+    data_bits: ClassVar[Final[int]] = 5
 
     @property
     def space(self):
@@ -29,8 +29,26 @@ class RTTYOpts():
     def __str__(self) -> str:
         return f"Mark: {self.mark}, Space: {self.space}, Baud: {self.baud}"
 
-@dataclass
-class GoertzelOpts():
+
+class SignalOpts(Struct, frozen=True):
+    Fs: int
+    rtty: RTTYOpts
+
+    @property
+    def nsamp(self):
+        return round(self.Fs / self.rtty.baud)
+
+
+class DecodeCommon(Struct, frozen=True):
+    oversampling: int
+    signal: SignalOpts
+
+    @property
+    def chunk_size(self) -> int:
+        return self.signal.nsamp // self.oversampling
+
+
+class GoertzelOpts(Struct, frozen=True):
     overlap_ratio: float
     dft_len: int
     decode: DecodeCommon
@@ -39,13 +57,13 @@ class GoertzelOpts():
     def overlap_size(self) -> int:
         return round(self.decode.chunk_size * self.overlap_ratio)
 
-@dataclass
-class EnvelopeOpts():
+
+class EnvelopeOpts(Struct, frozen=True):
     envelopes_order: int
     decode: DecodeCommon
 
-@dataclass 
-class SquelchOpts():
+
+class SquelchOpts(Struct, frozen=True):
     lower_thresh: float
     upper_thresh: float
     decode: DecodeCommon
@@ -53,17 +71,8 @@ class SquelchOpts():
     envelopes_order: int = 4
     bw_safety_margin: float = 2
 
-@dataclass
-class DecodeCommon():
-    oversampling: int
-    signal: SignalOpts
 
-    @property
-    def chunk_size(self) -> int:
-        return self.signal.nsamp // self.oversampling
-
-@dataclass
-class DecodeStreamOpts():
+class DecodeStreamOpts(Struct, frozen=True):
     squelch_grace_percent: float
     idle_bits: float
     none_friction: float
@@ -77,17 +86,8 @@ class DecodeStreamOpts():
     def idle_samples(self) -> int:
         return round(self.idle_bits * self.decode.chunk_size)
 
-@dataclass
-class SignalOpts():
-    Fs: int
-    rtty: RTTYOpts
 
-    @property
-    def nsamp(self):
-        return round(self.Fs / self.rtty.baud)
-
-@dataclass
-class SystemOpts():
+class SystemOpts(Struct, frozen=True):
     # Stem configs
     rtty: RTTYOpts
     signal: SignalOpts
@@ -106,7 +106,7 @@ class SystemOpts():
     @classmethod
     def default(cls) -> SystemOpts:
         rtty = RTTYOpts()
-        signal = SignalOpts(Fs = 8000, rtty=rtty)
+        signal = SignalOpts(Fs=8000, rtty=rtty)
         decode = DecodeCommon(oversampling=5, signal=signal)
 
         return cls(
@@ -116,7 +116,12 @@ class SystemOpts():
             envelope=EnvelopeOpts(envelopes_order=4, decode=decode),
             goertzel=GoertzelOpts(overlap_ratio=0.5, dft_len=256, decode=decode),
             squelch=SquelchOpts(lower_thresh=0.2, upper_thresh=2, decode=decode),
-            stream=DecodeStreamOpts(squelch_grace_percent=0.25, idle_bits=2, decode=decode, none_friction=0.1),
+            stream=DecodeStreamOpts(
+                squelch_grace_percent=0.25,
+                idle_bits=2,
+                decode=decode,
+                none_friction=0.1,
+            ),
             engine="goertzel",
-            source="microphone"
+            source="microphone",
         )

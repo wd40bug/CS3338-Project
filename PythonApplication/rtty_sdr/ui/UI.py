@@ -1,12 +1,28 @@
-from rtty_sdr.core.module import Module
-import time
+from rtty_sdr.broker import BROKER_BACKEND, receive_message
+import zmq
 
-class MockUI(Module):
+from rtty_sdr.core.protocol import ProtocolMessage
+
+
+class MockUI():
+    def __init__(self) -> None:
+        self.__context = zmq.Context()
+
     def run(self) -> None:
+        self.__sub_socket: zmq.Socket = self.__context.socket(zmq.SUB)
+        self.__sub_socket.connect(BROKER_BACKEND)
+        self.__sub_socket.subscribe("dsp.received")
         print("[UI] Started in Main Thread. Press Ctrl+C to exit.")
         try:
-            # GUI main loops (like PyQt's app.exec_()) block here
             while True:
-                time.sleep(0.1) 
+                topic, payload = receive_message(self.__sub_socket)
+                match topic:
+                    case "dsp.receive":
+                        if isinstance(payload, ProtocolMessage):
+                            print(f"Received message: {payload.msg}")
+                        else:
+                            print(f"Received invalid data for dsp.receive")
+                    case _:
+                        pass
         except KeyboardInterrupt:
             print("\n[UI] Shutting down...")

@@ -68,6 +68,8 @@ t.start()
 messages_received: list[RecvMessage | ProtocolDebug] = []
 for received in protocol(generator, decoder):
     messages_received.append(received)
+    if isinstance(received, RecvMessage):
+        print(f"Received message: '{received.msg}'")
     t.cancel()
     t = threading.Timer(10, lambda: pill_queue.put("stop"))
     t.start()
@@ -75,11 +77,7 @@ for received in protocol(generator, decoder):
 for received in messages_received:
     debug: ProtocolDebug
     if isinstance(received, RecvMessage):
-        print(f"Received: {received.encoding}")
         debug = received.debug
-        num_received += 1
-        if num_received == num_msgs:
-            pill_queue.put("stop")
     else:
         debug = received
 
