@@ -1,4 +1,6 @@
 import queue
+
+from loguru import logger
 from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, SendMessage, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
@@ -33,7 +35,7 @@ message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 encoder = BaudotEncoder()
 send_message = SendMessage(message, "KJ5OEH", encoder)
-print(f"Sending: {send_message.encoding}")
+logger.info(f"Sending: {send_message.encoding}")
 encoded = send_message.codes
 signal, t, annotations = internal_signal(encoded, opts, 0.05)
 
@@ -68,7 +70,7 @@ generator = decode_stream(
 for received in protocol(generator, decoder):
     debug: ProtocolDebug
     if isinstance(received, RecvMessage):
-        print(f"Received: {received.encoding}")
+        logger.info(f"Received: {received.encoding}")
         debug = received.debug
     else:
         debug = received

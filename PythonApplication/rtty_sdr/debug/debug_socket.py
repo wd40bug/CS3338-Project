@@ -1,5 +1,6 @@
 import threading
 
+from loguru import logger
 import zmq
 
 from rtty_sdr.comms.broker import DEBUG_SOCKET
@@ -7,7 +8,7 @@ from rtty_sdr.comms.broker import DEBUG_SOCKET
 
 class DebugSocket(threading.Thread):
     def __init__(self):
-        super().__init__()
+        super().__init__(daemon=True)
 
     def run(self):
         context = zmq.Context()
@@ -22,4 +23,4 @@ class DebugSocket(threading.Thread):
             else:
                 payload = None
             
-            print(f"[DEBUG] msg sent {topic}")
+            logger.debug(f"msg sent {topic}")

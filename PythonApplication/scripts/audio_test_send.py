@@ -1,3 +1,4 @@
+from loguru import logger
 from rtty_sdr.core.protocol import SendMessage
 from rtty_sdr.core.options import SystemOpts, RTTYOpts
 from rtty_sdr.debug.internal_signal import internal_signal
@@ -16,7 +17,7 @@ message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 encoder = BaudotEncoder()
 send_message = SendMessage(message, "KJ5OEH", encoder)
-print(f"Sending: {send_message.encoding}")
+logger.info(f"Sending: {send_message.encoding}")
 encoded = send_message.codes
 signal, t, annotations = internal_signal(encoded, opts, 0.05)
 

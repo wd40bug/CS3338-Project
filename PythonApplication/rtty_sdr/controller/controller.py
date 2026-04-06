@@ -1,6 +1,8 @@
 import json
 from typing import Literal
 from queue import Queue
+
+from loguru import logger
 from rtty_sdr.core.options import RTTYOpts
 from rtty_sdr.core.protocol import ProtocolMessage
 from rtty_sdr.controller.serialcom import send_serial, read_serial
@@ -36,7 +38,7 @@ def send_receive(msgqueue: Queue[ToESP | Literal["done"]]):
             return
         
         send_serial(createJSON(msg))
-        print(read_serial())
+        logger.debug(read_serial())
         msgqueue.task_done()
 
 

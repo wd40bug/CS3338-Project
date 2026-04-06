@@ -6,6 +6,7 @@ from rtty_sdr.comms.topics import TopicsRegistry
 import msgspec
 
 import numpy as np
+import math
 
 
 class PubSub:
@@ -33,7 +34,12 @@ class PubSub:
             return obj.tolist()
         raise TypeError(f"Objects of type {type(obj).__name__} are unsupported")
 
-    def __init__(self, subscribe_to: list[str], registry: TopicsRegistry) -> None:
+    def __init__(
+        self,
+        subscribe_to: list[str],
+        registry: TopicsRegistry,
+        timeout_s: float | None = None,
+    ) -> None:
         self.__context: zmq.Context = zmq.Context()
         self.__sub_socket: zmq.Socket = self.__context.socket(zmq.SUB)
         self.__sub_socket.connect(BROKER_BACKEND)
@@ -42,6 +48,7 @@ class PubSub:
 
         self.__pub_socket: zmq.Socket = self.__context.socket(zmq.PUB)
         self.__pub_socket.connect(BROKER_FRONTEND)
+        self.__pub_socket.setsockopt(zmq.LINGER, 0)
         self.__decoder_registry = {
             topic: msgspec.msgpack.Decoder(
                 registry.get(topic), dec_hook=self.decode_hook
@@ -59,10 +66,19 @@ class PubSub:
         else:
             self.__pub_socket.send_string(topic)
 
-    def __recv_message_internal(self, flags: int):
-        topic: str = self.__sub_socket.recv_string(flags=flags)
+    def recv_message_timeout(
+        self, timeout_ms: int | None = None
+    ) -> Optional[tuple[str, Optional[msgspec.Struct]]]:
+        poller = zmq.Poller()
+        poller.register(self.__sub_socket)
+        if poller.poll(timeout=timeout_ms):
+            topic: str = self.__sub_socket.recv_string()
+        else:
+            return None
+
         if self.__sub_socket.getsockopt(zmq.RCVMORE):
-            packed_payload: bytes = self.__sub_socket.recv(flags=flags)
+            #TODO: Could implement blocking logic here, but since it's always sent back-to-back idk
+            packed_payload: bytes = self.__sub_socket.recv() 
             decoder = self.__decoder_registry[topic]
             payload = decoder.decode(packed_payload)
         else:
@@ -72,11 +88,7 @@ class PubSub:
 
         return topic, payload
 
-    def recv_message_nowait(self) -> Optional[tuple[str, Optional[msgspec.Struct]]]:
-        try:
-            return self.__recv_message_internal(flags=zmq.NOBLOCK)
-        except zmq.Again:
-            return None
-
     def recv_message(self) -> tuple[str, Optional[msgspec.Struct]]:
-        return self.__recv_message_internal(flags=0)
+        recv = self.recv_message_timeout()
+        assert recv is not None
+        return recv

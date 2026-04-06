@@ -44,7 +44,6 @@ class MockSignalSource:
             return None
 
         chunk_size = min(len(self.__buffer), self.chunk_size)
-        # print(f"[DEBUG]: Sending {chunk_size} samples")
         chunk = self.__buffer[:chunk_size]
         self.__buffer = self.__buffer[chunk_size:]
 

@@ -1,3 +1,4 @@
+from loguru import logger
 import zmq
 import threading
 from typing import Final, Optional
@@ -33,6 +34,8 @@ class BrokerModule(threading.Thread):
         assert isinstance(self.__debug, zmq.Socket)
 
         self.__frontend.setsockopt_string(zmq.SUBSCRIBE, "")
+        self.__backend.setsockopt(zmq.LINGER, 0)
+        self.__debug.setsockopt(zmq.LINGER, 0)
 
         try:
             # 2. Bind to the IPC endpoints
@@ -40,16 +43,16 @@ class BrokerModule(threading.Thread):
             self.__backend.bind(BROKER_BACKEND)
             self.__debug.bind(DEBUG_SOCKET)
 
-            print("[Broker] Online. Routing traffic...")
+            logger.info("Online. Routing traffic...")
 
             # 3. Start the proxy (Blocks forever until context is terminated)
             zmq.proxy(self.__frontend, self.__backend, self.__debug)
 
         except zmq.error.ContextTerminated:
             # This is intentionally triggered by the stop() method
-            print("[Broker] Context terminated. Shutting down gracefully...")
+            logger.info("Context terminated. Shutting down gracefully...")
         except Exception as e:
-            print(f"[Broker] Fatal error: {e}")
+            logger.exception(f"Fatal error: {e}")
         finally:
             self.__cleanup()
 
@@ -70,4 +73,4 @@ class BrokerModule(threading.Thread):
         if self.__backend is not None:
             self.__backend.close(linger=0)
 
-        print("[Broker] Offline.")
+        logger.info("Offline.")

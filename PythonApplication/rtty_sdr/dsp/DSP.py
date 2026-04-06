@@ -2,6 +2,7 @@ import multiprocessing
 import queue
 import threading
 
+from loguru import logger
 import msgspec
 from rtty_sdr.comms.topics import TopicsRegistry
 from rtty_sdr.core.baudot import BaudotDecoder
@@ -78,10 +79,10 @@ class RunDsp(threading.Thread):
             item = next(pipeline)
             if isinstance(item, RecvMessage):
                 pubsub.publish_message("dsp.received", item)
-                print(f"[DSP-runner] Got a message signal of len {len(item.debug.decode.envelope)}")
+                logger.trace(f"Got a message signal of len {len(item.debug.decode.envelope)}")
             else:
                 assert isinstance(item, StoppedMsg)
-                print(f"[DSP-runner] Got a debug signal of len {len(item.debug.decode.envelope)}")
+                logger.trace(f"Got a debug signal of len {len(item.debug.decode.envelope)}")
                 pubsub.publish_message(
                     "dsp.debug_remainder",
                     RemainderMsg(item.debug, item.cmd.command == "stop"),
@@ -109,7 +110,7 @@ class DspModule(multiprocessing.Process):
         self.__registry = registry
 
     def run(self) -> None:
-        print("[DSP] Running DSP Process")
+        logger.info("Running DSP Process")
         pubsub = PubSub(["ui.send_internal", "ui.shutdown", "ui.settings"], self.__registry)
 
         # Pipeline Communication
@@ -122,15 +123,16 @@ class DspModule(multiprocessing.Process):
 
         while True:
             topic, payload = pubsub.recv_message()
-            print(f"[DSP] Received {topic} msg")
+            logger.trace(f"Received {topic} msg")
             if topic == "ui.settings":
                 assert isinstance(payload, SystemOpts)
                 command_queue.put(RestartCommand(new_settings=payload))
             elif topic == "ui.shutdown":
                 assert payload is None
                 command_queue.put(FullStopCommand())
-                return  # Exit the thread cleanly
+                logger.info("Ending DSP process")
+                return  # Exit the process cleanly
             elif topic == "ui.send_internal":
                 assert isinstance(payload, InternalSignalMsg)
-                print(f"[DSP] signal of len {len(payload.signal)} received")
+                logger.trace(f"signal of len {len(payload.signal)} received")
                 static_data_queue.put(payload.signal)

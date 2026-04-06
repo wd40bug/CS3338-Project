@@ -126,7 +126,6 @@ def protocol(
     states = StateChanges(state)
 
     for resp, resp_debug in code_generator:
-        # print(f"Got {resp.kind} from code_generator")
         debugs.append(resp_debug)
         if resp.kind == "lost_signal":
             state = ProtocolState.Length

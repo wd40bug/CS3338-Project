@@ -1,4 +1,6 @@
 import threading
+
+from loguru import logger
 from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, SendMessage, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
@@ -69,7 +71,7 @@ messages_received: list[RecvMessage | ProtocolDebug] = []
 for received in protocol(generator, decoder):
     messages_received.append(received)
     if isinstance(received, RecvMessage):
-        print(f"Received message: '{received.msg}'")
+        logger.info(f"Received message: '{received.msg}'")
     t.cancel()
     t = threading.Timer(10, lambda: pill_queue.put("stop"))
     t.start()

@@ -1,3 +1,4 @@
+from loguru import logger
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
@@ -60,9 +61,9 @@ for resp, debug in decode_stream(
     pills,
 ):
     if isinstance(resp, Code):
-        print(f"Code: {resp.code} -> {decoder.decode(resp.code)}")
+        logger.info(f"Code: {resp.code} -> {decoder.decode(resp.code)}")
     else:
-        print(f"Code: {resp}")
+        logger.info(f"Code: {resp}")
     envelope = np.concat((envelope, debug.envelope))
     annotations.append(debug.annotations)
     states.extend(debug.states)
