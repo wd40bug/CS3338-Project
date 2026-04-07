@@ -2,101 +2,86 @@ import multiprocessing as mp
 import threading
 import sys
 import time
-from typing import Final, List, Any
+from typing import Final, List, Any, Deque
+import collections
+import matplotlib.pyplot as plt
+import code
 
 from loguru import logger
+import loguru
 
-from rtty_sdr.broker import BrokerModule
+from rtty_sdr.comms.broker import BrokerModule
+from rtty_sdr.comms.topics import TopicsRegistry
+from rtty_sdr.controller.controller import ControllerModule
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.DSP import DspModule
-from rtty_sdr.ui.UI import MockUI
+from rtty_sdr.ui.TUI import RttyTerminal
+from rtty_sdr.debug.debug_socket import DebugSocket
+from rtty_sdr.debug.squelch import plot_shaded_squelch
+from rtty_sdr.debug.state_changes import graph_states
+logger.remove(0)
+logger.add("log.log", level="TRACE", mode="w", enqueue=True)
+early_logs: Final[Deque[loguru.Message]] = collections.deque(maxlen=500)
+
+def temp_memory_sink(message: loguru.Message) -> None:
+    early_logs.append(message)
 
 
-# --- Mocking the imported modules for demonstration ---
-class MockThread(threading.Thread):
-    def __init__(self, name: str) -> None:
-        super().__init__()
-        self.__name: Final[str] = name
-
-    def run(self) -> None:
-        logger.info(f"Running: {self.__name}")
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            pass
-
-
-class MockProcess(mp.Process):
-    def __init__(self, name: str) -> None:
-        super().__init__()
-        self.__name = name
-
-    def run(self) -> None:
-        logger.info(f"Running: {self.__name}")
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            pass
-
-
-settings = SystemOpts.default(source='internal')
-# ------------------------------------------------------
-
-
-class AppRunner:
-    """Orchestrates the startup and shutdown of all application components."""
-
-    def __init__(
-        self,
-        processes: list[mp.Process],
-        threads: list[threading.Thread],
-    ) -> None:
-        # Keep track of processes so we can cleanly terminate them later
-        self.__ui = MockUI(settings)
-        self.__broker = BrokerModule()
-        self.__processes: Final[List[mp.Process]] = processes
-        self.__threads: Final[list[threading.Thread]] = threads
-
-    def run(self) -> None:
-        """Starts the architecture and hands control over to the UI."""
-
-        # 1. Start the ZeroMQ Broker first (I/O bound -> Thread)
-        self.__broker.start()
-
-        # Give the broker a fraction of a second to bind its IPC sockets
-        time.sleep(0.1)
-
-        for start in self.__processes + self.__threads:
-            start.start()
-
-        # 4. Start User Interface (Must be Main Thread)
-        try:
-            self.__ui.run()  # <--- Execution blocks here until the UI is closed
-        finally:
-            self.__broker.stop()
-            logger.info("Cleaning up background processes...")
-            for p in self.__processes:
-                if p.is_alive():
-                    logger.info(f"\tTerminating {p.name}...")
-                    p.terminate()
-                    p.join(timeout=2.0)
-
-                    # Force kill if it hangs during termination
-                    if p.is_alive():
-                        p.kill()
-
-            logger.info("Application exited cleanly.")
-
-        return
+temp_handler_id = logger.add(
+    temp_memory_sink, colorize=True, level="TRACE", enqueue=True
+)
 
 if __name__ == "__main__":
+
+    
+
+    settings = SystemOpts.default(source="internal", engine='goertzel')
+
+
     # Required for safe cross-platform multiprocessing, though
     # openSUSE handles standard fork() well.
     mp.set_start_method("spawn", force=True)
 
-    runner = AppRunner(
-        [DspModule(settings), MockProcess("error correction")], [MockThread("controller")]
-    )
-    sys.exit(runner.run())
+    registry = TopicsRegistry()
+    ui = RttyTerminal(registry, settings)
+    broker = BrokerModule()
+    debug_socket = DebugSocket(registry)
+    dsp = DspModule(settings, registry)
+    controller = ControllerModule(settings, registry)
+
+    broker.start()
+    time.sleep(0.2)
+    debug_socket.start()
+    dsp.start()
+    controller.start()
+
+    retcode = ui.run()
+
+    logger.info(f"UI Exited with code: {retcode}")
+    # breakpoint()
+
+    debug_socket.join()
+    dsp.join()
+    controller.join()
+    broker.stop()
+
+    # code.interact(local=locals())
+
+    # summed_debug = debug_socket.collect()
+    #
+    # fig, axs = plt.subplots(3, 1)
+    # local_t = summed_debug.decode.indices / settings.signal.Fs
+    # logger.debug(f"Shape of envelope is {summed_debug.decode.envelope.shape}")
+    # axs[0].plot(local_t, summed_debug.decode.envelope)
+    # summed_debug.decode.annotations.draw(axs[0], Fs=settings.signal.Fs)
+    #
+    # axs[1].plot(local_t, summed_debug.decode.envelope)
+    # axs[1].set_title("With ProtocolState")
+    # graph_states(local_t, axs[1], summed_debug.states)
+    # axs[1].legend(bbox_to_anchor=(1.00, 0.5), loc="center left", borderaxespad=0.0)
+    #
+    # axs[2].plot(local_t, summed_debug.decode.envelope)
+    # axs[2].set_title("With Squelch")
+    # plot_shaded_squelch(local_t, fig.axes[2], summed_debug.decode.squelch)
+    # axs[2].legend(bbox_to_anchor=(1.00, 0.5), loc="center left", borderaxespad=0.0)
+    # plt.show()

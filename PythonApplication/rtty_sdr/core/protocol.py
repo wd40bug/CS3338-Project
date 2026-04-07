@@ -1,4 +1,7 @@
 from collections.abc import Iterable
+
+from loguru import logger
+from numpy._core.numeric import indices
 from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import crcmod.predefined
 from typing import Final, Iterator, Self
@@ -117,6 +120,7 @@ class StoppedMsg(msgspec.Struct, frozen=True):
 def protocol(
     code_generator: Iterable[DecodeYield], decoder: BaudotDecoder
 ) -> Iterator[RecvMessage | StoppedMsg]:
+    initial_shift = decoder.shift
     state: ProtocolState = ProtocolState.Length
     chars = ""
     data_length = 0
@@ -126,18 +130,29 @@ def protocol(
     states = StateChanges(state)
 
     for resp, resp_debug in code_generator:
+        if len(resp_debug.indices) != 0:
+            index = resp_debug.indices[-1]
+        elif len(debugs) != 0:
+            for debug in reversed(debugs):
+                if len(debug.indices) != 0:
+                    index = debug.indices[-1]
+            else:
+                index = 0
+        else:
+            index = 0
         debugs.append(resp_debug)
         if resp.kind == "lost_signal":
             state = ProtocolState.Length
-            states.change(resp_debug.indices[-1], state)
+            states.change(index, state)
             chars = ""
+            decoder.shift = initial_shift
             continue
         elif resp.kind == "command":
             if resp.command.command == "restart":
                 yield StoppedMsg(
                     debug=ProtocolDebug.create(
                         debugs,
-                        states.build(resp_debug.indices[-1], ProtocolState.Length),
+                        states.build(index, ProtocolState.Length),
                     ),
                     cmd=resp.command,
                 )
@@ -145,7 +160,7 @@ def protocol(
                 yield StoppedMsg(
                     debug=ProtocolDebug.create(
                         debugs,
-                        states.build(resp_debug.indices[-1], ProtocolState.Length),
+                        states.build(index, ProtocolState.Length),
                     ),
                     cmd=resp.command,
                 )
@@ -160,17 +175,24 @@ def protocol(
         match state:
             case ProtocolState.Length:
                 if len(chars) == LengthLen:
-                    data_length = int(chars, 16)
+                    try:
+                        data_length = int(chars, 16)
+                    except ValueError as e:
+                        logger.warning(
+                            f"Received msg with invalid len field '{chars}' restarting"
+                        )
+                        chars = ""
+                        decoder.shift = initial_shift
                     state = (
                         ProtocolState.Data
                         if data_length != 0
                         else ProtocolState.Checksum
                     )
-                    states.change(resp_debug.indices[-1], state)
+                    states.change(index, state)
             case ProtocolState.Data:
                 if len(chars) == LengthLen + data_length:
                     state = ProtocolState.Checksum
-                    states.change(resp_debug.indices[-1], state)
+                    states.change(index, state)
             case ProtocolState.Checksum:
                 # Start
                 if len(chars) == LengthLen + data_length:
@@ -178,7 +200,7 @@ def protocol(
                 # End
                 if len(chars) == LengthLen + data_length + ChecksumLen:
                     state = ProtocolState.Callsign
-                    states.change(resp_debug.indices[-1], state)
+                    states.change(index, state)
             case ProtocolState.Callsign:
                 if len(chars) == LengthLen + data_length + ChecksumLen + CallsignLen:
                     msg = chars[LengthLen : LengthLen + data_length]
@@ -195,6 +217,8 @@ def protocol(
                         checksum_start_idx,
                         checksum,
                         debugs,
-                        states.build(resp_debug.indices[-1], state),
+                        states.build(index, state),
                     )
                     debugs.clear()
+                    chars = ""
+                    decoder.shift = initial_shift

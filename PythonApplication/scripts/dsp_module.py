@@ -22,18 +22,18 @@ from loguru import logger
 import sys
 
 logger.remove(0)
-logger.add(sys.stderr, level="DEBUG")
+logger.add(sys.stderr, level="TRACE")
 
 msgs = ["HELLO", "WORLD", "!"]
-settings = SystemOpts.default(source="internal", engine='envelope')
+settings = SystemOpts.default(source="internal", engine='goertzel')
 registry = TopicsRegistry()
 registry.register("ui.send_internal", InternalSignalMsg)
-registry.register("ui.shutdown", None)
+registry.register("system.shutdown", None)
 registry.register("ui.settings", SystemOpts)
 
 broker = BrokerModule()
 dsp = DspModule(settings, registry)
-debug_socket = DebugSocket()
+debug_socket = DebugSocket(registry)
 
 broker.start()
 debug_socket.start()
@@ -46,6 +46,7 @@ encoder = BaudotEncoder(settings.rtty.initial_shift)
 time.sleep(1)
 total_signal: list[npt.NDArray[np.float64]] = []
 for msg in msgs:
+    encoder.set_shift(settings.rtty.initial_shift)
     send_message = SendMessage.create(msg, "KJ5OEH", encoder)
     signal, _, _ = internal_signal(send_message.codes, settings.signal, 0.2)
     total_signal.append(signal)
@@ -60,7 +61,7 @@ while True:
     recv = pubsub.recv_message_timeout(10_000)
     if recv is None:
         logger.error(f"Timed out waiting for message: {num_messages + 1}")
-        pubsub.publish_message("ui.shutdown", None)
+        pubsub.publish_message("system.shutdown", None)
         continue
     topic, msg = recv
     logger.info(f"Received {topic} msg")
@@ -71,7 +72,7 @@ while True:
             debug.append(msg.debug)
             num_messages += 1
             if num_messages == len(msgs):
-                pubsub.publish_message("ui.shutdown", None)
+                pubsub.publish_message("system.shutdown", None)
                 logger.info(f"Shutting down after receiving all {len(msgs)} messages")
         case "dsp.debug_remainder":
             assert isinstance(msg, RemainderMsg)

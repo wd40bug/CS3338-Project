@@ -4,23 +4,34 @@ from loguru import logger
 import zmq
 
 from rtty_sdr.comms.broker import DEBUG_SOCKET
+from rtty_sdr.comms.pubsub import PubSub
+from rtty_sdr.comms.topics import TopicsRegistry
+from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage
+from rtty_sdr.dsp.DSP import RemainderMsg
 
 
 class DebugSocket(threading.Thread):
-    def __init__(self):
-        super().__init__(daemon=True)
+    def __init__(self, registry: TopicsRegistry):
+        super().__init__()
+        self.__debugs: list[ProtocolDebug] = []
+        self.__registry = registry
 
     def run(self):
-        context = zmq.Context()
-        socket = context.socket(zmq.SUB)
-        socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        socket.connect(DEBUG_SOCKET)
+        pubsub = PubSub(None, self.__registry, sub_addr=DEBUG_SOCKET)
+        # context = zmq.Context()
+        # socket = context.socket(zmq.SUB)
+        # socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        # socket.connect(DEBUG_SOCKET)
 
         while True:
-            topic = socket.recv_string()
-            if socket.getsockopt(zmq.RCVMORE):
-                _ = socket.recv()
-            else:
-                payload = None
-            
+            topic, payload = pubsub.recv_message()
             logger.debug(f"msg sent {topic}")
+            if topic == "dsp.received" or topic == "dsp.debug_remainder":
+                assert isinstance(payload, RemainderMsg) or isinstance(payload, RecvMessage)
+                self.__debugs.append(payload.debug)
+            elif topic == "system.shutdown":
+                logger.debug("Shutting down debug socket")
+                return
+
+    def collect(self) -> ProtocolDebug:
+        return ProtocolDebug.combine(self.__debugs)

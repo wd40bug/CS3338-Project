@@ -36,25 +36,37 @@ class PubSub:
 
     def __init__(
         self,
-        subscribe_to: list[str],
+        subscribe_to: list[str] | None,
         registry: TopicsRegistry,
-        timeout_s: float | None = None,
+        pub_addr: str = BROKER_FRONTEND,
+        sub_addr: str = BROKER_BACKEND,
     ) -> None:
         self.__context: zmq.Context = zmq.Context()
         self.__sub_socket: zmq.Socket = self.__context.socket(zmq.SUB)
-        self.__sub_socket.connect(BROKER_BACKEND)
-        for topic in subscribe_to:
-            self.__sub_socket.subscribe(topic)
+        self.__sub_socket.connect(sub_addr)
+        if subscribe_to is not None:
+            for topic in subscribe_to:
+                self.__sub_socket.subscribe(topic)
+        else:
+            self.__sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
         self.__pub_socket: zmq.Socket = self.__context.socket(zmq.PUB)
-        self.__pub_socket.connect(BROKER_FRONTEND)
-        self.__pub_socket.setsockopt(zmq.LINGER, 0)
-        self.__decoder_registry = {
-            topic: msgspec.msgpack.Decoder(
-                registry.get(topic), dec_hook=self.decode_hook
-            )
-            for topic in subscribe_to
-        }
+        self.__pub_socket.connect(pub_addr)
+        self.__pub_socket.setsockopt(zmq.LINGER, 1000)
+        if subscribe_to is not None:
+            self.__decoder_registry = {
+                topic: msgspec.msgpack.Decoder(
+                    registry.get(topic), dec_hook=self.decode_hook
+                )
+                for topic in subscribe_to
+                if registry.get(topic) is not None
+            }
+        else:
+            self.__decoder_registry = {
+                topic: msgspec.msgpack.Decoder(ty, dec_hook=self.decode_hook)
+                for topic, ty in registry.TOPICS.items()
+                if ty is not None
+            }
         self.__encoder = msgspec.msgpack.Encoder(enc_hook=self.encode_hook)
         self.__registry = registry
 
@@ -77,8 +89,8 @@ class PubSub:
             return None
 
         if self.__sub_socket.getsockopt(zmq.RCVMORE):
-            #TODO: Could implement blocking logic here, but since it's always sent back-to-back idk
-            packed_payload: bytes = self.__sub_socket.recv() 
+            # TODO: Could implement blocking logic here, but since it's always sent back-to-back idk
+            packed_payload: bytes = self.__sub_socket.recv()
             decoder = self.__decoder_registry[topic]
             payload = decoder.decode(packed_payload)
         else:

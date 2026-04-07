@@ -11,7 +11,7 @@ DEBUG_SOCKET: Final[str] = "ipc:///tmp/app_backend_debug.ipc"
 
 class BrokerModule(threading.Thread):
     def __init__(self) -> None:
-        super().__init__(daemon=True)
+        super().__init__()
         # Declare private variables, but do NOT initialize ZeroMQ objects here.
         # They must be created inside run() to guarantee they belong to the correct thread.
         self.__context: Optional[zmq.Context] = None
@@ -72,5 +72,8 @@ class BrokerModule(threading.Thread):
 
         if self.__backend is not None:
             self.__backend.close(linger=0)
+
+        if self.__debug is not None:
+            self.__debug.close(linger=0)
 
         logger.info("Offline.")

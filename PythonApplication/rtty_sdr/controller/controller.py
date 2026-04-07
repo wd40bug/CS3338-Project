@@ -1,46 +1,80 @@
-import json
+import threading
+import queue
+
 from typing import Literal
-from queue import Queue
 
+from rtty_sdr.comms.pubsub import PubSub
+from rtty_sdr.comms.topics import TopicsRegistry
+from rtty_sdr.controller.espcom import (
+    EspComSuccess,
+    EspComms,
+    ToESP,
+)
 from loguru import logger
-from rtty_sdr.core.options import RTTYOpts
-from rtty_sdr.core.protocol import ProtocolMessage
-from rtty_sdr.controller.serialcom import send_serial, read_serial
 
-class ToESP:
-    options: RTTYOpts
-    message: list[int]
+from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
+from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.protocol import SendMessage
 
-    def __init__(self, opts: RTTYOpts, msg: ProtocolMessage):
-        self.options = opts
-        self.message = msg.codes
+class EspComThread(threading.Thread):
+    def __init__(
+        self,
+        msgqueue: queue.Queue[ToESP | Literal["done"]],
+        registry: TopicsRegistry,
+    ):
+        super().__init__()
+        self.__msgqueue = msgqueue
+        self.__comms = EspComms()
+        self.__pubsub = PubSub([], registry)
+
+    def broadcast_shutdown(self):
+        self.__pubsub.publish_message('system.shutdown', None)
+
+    @catch_and_broadcast
+    def run(self):
+        while True:
+            msg = self.__msgqueue.get()
+            if msg == "done":
+                logger.trace("Esp Communication done")
+                self.__msgqueue.task_done()
+                return
+            ret = self.__comms.send_receive(msg)
+            assert isinstance(ret, EspComSuccess), f"Failed to send message to ESP: {ret.detail}"
+            logger.debug("Successfully sent message to ESP")
+            self.__pubsub.publish_message("controller.sent", None)
+            self.__msgqueue.task_done()
+                
 
 
-def createJSON(info: ToESP):
-    data = {
-        "stop_bits": info.options.stop_bits,
-        "baud": info.options.baud,
-        "mark": info.options.mark,
-        "shift": info.options.shift,
-        "pre_msg_stops": info.options.pre_msg_stops,
-        "message": info.message
-    }
-
-    jsonstr = json.dumps(data)
-    return jsonstr
-
-def send_receive(msgqueue: Queue[ToESP | Literal["done"]]):
-    while True:
-        msg = msgqueue.get()
-
-        if(msg == "done"):
-            msgqueue.task_done()
-            return
+class ControllerModule(threading.Thread):
+    def __init__(self, initial_settings: SystemOpts, registry: TopicsRegistry):
+        super().__init__()
+        registry.register("controller.sent", None)
+        self.__registry = registry
+        self.__settings = initial_settings
         
-        send_serial(createJSON(msg))
-        logger.debug(read_serial())
-        msgqueue.task_done()
+    @catch_and_broadcast
+    def run(self):
+        logger.info("Running Controller Process")
+        pubsub = PubSub(["ui.send_message", "system.shutdown", "ui.settings"], self.__registry)
 
+        msgqueue: queue.Queue[ToESP | Literal["done"]] = queue.Queue()
+        esp_comm = EspComThread(msgqueue, self.__registry)
+        esp_comm.start()
 
-
+        while True:
+            topic, payload = pubsub.recv_message()
+            logger.trace(f"Received {topic} msg")
+            if topic == "ui.settings":
+                assert isinstance(payload, SystemOpts)
+                self.__settings = payload
+            elif topic == "system.shutdown":
+                assert payload is None
+                msgqueue.put("done")
+                esp_comm.join()
+                logger.info("Ending Controller thread")
+                return
+            elif topic == "ui.send":
+                assert isinstance(payload, SendMessage)
+                msgqueue.put(ToESP(payload.codes, self.__settings.rtty))
 

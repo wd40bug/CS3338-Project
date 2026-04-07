@@ -1,4 +1,5 @@
 from typing import Protocol, Final
+from loguru import logger
 import numpy as np
 import numpy.typing as npt
 import sounddevice as sd
@@ -32,6 +33,7 @@ class MockSignalSource:
                     chunk = self.__queue.get_nowait()
                     new_data.append(chunk)
                     self.__queue.task_done()
+                    logger.trace(f"Received {len(new_data)} samples")
                 except queue.Empty:
                     break
             

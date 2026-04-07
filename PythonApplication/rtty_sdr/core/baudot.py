@@ -9,7 +9,7 @@ class Shift(IntEnum):
 
 
 class BaudotEncoder:
-    __state: Shift
+    shift: Shift
 
     # Letter shift mapping
     LTRS_Map: Final[dict[str, int]] = {
@@ -96,11 +96,8 @@ class BaudotEncoder:
             return None
 
     def __init__(self, initial_shift: Shift = Shift.LTRS):
-        self.__state = initial_shift
+        self.shift = initial_shift
         pass
-
-    def set_shift(self, new_shift: Shift):
-        self.__state = new_shift
 
     def encode(
         self,
@@ -129,25 +126,22 @@ class BaudotEncoder:
 
         ret: list[int] = []
         for mapped in mapped_values:
-            if mapped.shift != self.__state:
+            if mapped.shift != self.shift:
                 ret.extend([mapped.shift, mapped.code])
-                self.__state = mapped.shift
+                self.shift = mapped.shift
             else:
                 ret.append(mapped.code)
         return ret
 
 class BaudotDecoder():
-    __state: Shift
+    shift: Shift
 
     # Reversed maps from BaudotEncoder
     LTRS_Map: Final[dict[int, str]] = {value: key for key,value in BaudotEncoder.LTRS_Map.items()}
     FIGS_Map: Final[dict[int, str]] = {value: key for key,value in BaudotEncoder.FIGS_Map.items()}
 
     def __init__(self, initial_shift: Shift = Shift.LTRS) -> None:
-        self.__state = initial_shift
-
-    def set_shift(self, new_shift) -> None:
-        self.__state = new_shift
+        self.shift = initial_shift
 
     def decode(self, codes: list[int] | int) -> str:
         
@@ -157,12 +151,12 @@ class BaudotDecoder():
         ret = ""
         for code in codes:
             if code in Shift:
-                self.__state = Shift(code)
+                self.shift = Shift(code)
                 continue
             
-            if self.__state == Shift.LTRS and (val := BaudotDecoder.LTRS_Map.get(code)):
+            if self.shift == Shift.LTRS and (val := BaudotDecoder.LTRS_Map.get(code)):
                ret += val 
-            elif self.__state == Shift.FIGS and (val := BaudotDecoder.FIGS_Map.get(code)):
+            elif self.shift == Shift.FIGS and (val := BaudotDecoder.FIGS_Map.get(code)):
                 ret += val
             else:
                 raise ValueError(f"Unknown code: {code}")

@@ -106,6 +106,7 @@ class SystemOpts(Struct, frozen=True):
     # System Options
     engine: Literal["goertzel", "envelope"]
     source: Literal["microphone", "internal"]
+    callsign: str
 
     @classmethod
     def default(
@@ -133,6 +134,7 @@ class SystemOpts(Struct, frozen=True):
         none_friction: float = 0.1,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
+        callsign: str = "KJ5OEH",
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -164,7 +166,7 @@ class SystemOpts(Struct, frozen=True):
                 decode=decode,
                 order=squelch_order,
                 envelopes_order=squelch_envelopes_order,
-                bw_safety_margin=bw_safety_margin
+                bw_safety_margin=bw_safety_margin,
             ),
             stream=DecodeStreamOpts(
                 squelch_grace_percent=squelch_grace_percent,
@@ -174,4 +176,5 @@ class SystemOpts(Struct, frozen=True):
             ),
             engine=engine,
             source=source,
+            callsign=callsign,
         )

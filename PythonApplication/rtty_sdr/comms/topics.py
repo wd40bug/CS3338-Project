@@ -1,7 +1,7 @@
-from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Any
 import msgspec
+import multiprocessing
 
 
 class TopicsRegistry:
@@ -9,6 +9,9 @@ class TopicsRegistry:
         self.__topics: dict[str, type[msgspec.Struct] | None] = {}
 
     def register(self, topic: str, type: type[msgspec.Struct] | None):
+        assert multiprocessing.current_process().name == "MainProcess", (
+            f"Registering topics in a non-main process will not work as expected. Found to be in process: {multiprocessing.current_process().name}"
+        )
         assert not topic in self.__topics
         self.__topics[topic] = type
 
@@ -24,7 +27,7 @@ class TopicsRegistry:
         if expected_type is None:
             assert payload is None, f"Topic '{topic}' must have a payload of None"
             return
-        
+
         assert isinstance(payload, expected_type), (
             f"Validation failed for {topic}: expected {expected_type}, "
             f"got {type(payload)}"
