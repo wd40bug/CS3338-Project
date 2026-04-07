@@ -7,7 +7,7 @@ from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import PillQueue, CommandsQueue
+from rtty_sdr.dsp.poisonPill import CommandsQueueQueue, CommandsQueue
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
@@ -18,6 +18,7 @@ from rtty_sdr.core.options import (
     RTTYOpts,
     SignalOpts,
     SquelchOpts,
+    SystemOpts,
 )
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
@@ -28,33 +29,29 @@ import numpy.typing as npt
 import matplotlib.pyplot as plt
 import sys
 
-Fs = 8000
-rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1, stop_bits=2)
-opts = SignalOpts(Fs=Fs, rtty=rtty)
+opts = SystemOpts.default()
 message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 encoder = BaudotEncoder()
-send_message = SendMessage(message, "KJ5OEH", encoder)
+send_message = SendMessage.create(message, "KJ5OEH", encoder)
 logger.info(f"Sending: {send_message.encoding}")
 encoded = send_message.codes
-signal, t, annotations = internal_signal(encoded, opts, 0.05)
+signal, t, annotations = internal_signal(encoded, opts.signal, 0.05)
 
 signal = awgn(signal, 10)
 
-decode = DecodeCommon(oversampling=5, signal=opts)
-pill_queue: PillQueue = queue.Queue()
+pill_queue: CommandsQueueQueue = queue.Queue()
 pills = CommandsQueue(pill_queue)
-signal_source = MockSignalSource(signal, decode, None, pill_queue)
+signal_source = MockSignalSource(signal, opts.decode, None, pill_queue)
 
 # engine = GoertzelEngine(GoertzelOpts(0.5, 256, decode))
-engine = EnvelopeEngine(EnvelopeOpts(envelopes_order=4, decode=decode))
+engine = EnvelopeEngine(opts.envelope)
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
-squelch_opts = SquelchOpts(0.2, 1, decode)
-squelch = Squelch(squelch_opts)
+squelch = Squelch(opts.squelch)
 decoder = BaudotDecoder()
 
 generator = decode_stream(
@@ -62,7 +59,7 @@ generator = decode_stream(
     squelch,
     engine,
     DecodeStreamOpts(
-        squelch_grace_percent=0.25, idle_bits=2, decode=decode, none_friction=2
+        squelch_grace_percent=0.25, idle_bits=2, decode=opts.decode, none_friction=2
     ),
     pills,
 )
@@ -73,7 +70,7 @@ for received in protocol(generator, decoder):
         logger.info(f"Received: {received.encoding}")
         debug = received.debug
     else:
-        debug = received
+        debug = received.debug
 
     fig, axs = plt.subplots(3, 1)
     local_t = t[: len(debug.decode.envelope)]
@@ -82,7 +79,7 @@ for received in protocol(generator, decoder):
         axs[0].set_title(f"RTTY Message '{received.msg}' with annotations")
     else:
         axs[0].set_title(f"Incomplete RTTY Message with annotations")
-    debug.decode.annotations.draw(axs[0], Fs=Fs)
+    debug.decode.annotations.draw(axs[0], Fs=opts.signal.Fs)
 
     axs[1].plot(local_t, debug.decode.envelope)
     axs[1].set_title("With ProtocolState")

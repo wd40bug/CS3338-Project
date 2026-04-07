@@ -1,27 +1,20 @@
 import threading
 
 from loguru import logger
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, SendMessage, protocol
+from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, StoppedMsg, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import PillQueue, CommandsQueue
+from rtty_sdr.dsp.poisonPill import CommandsQueue, CommandsQueueQueue, FullStopCommand
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
-    DecodeCommon,
-    GoertzelOpts,
-    SignalOpts,
-    SquelchOpts,
     SystemOpts,
-    RTTYOpts,
-    DecodeStreamOpts,
+    DecodeCommon
 )
-from rtty_sdr.debug.awgn import awgn
-from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
+from rtty_sdr.core.baudot import BaudotDecoder
 
 import numpy as np
 import numpy.typing as npt
@@ -30,36 +23,29 @@ import sys
 from rtty_sdr.dsp.sources import MicrophoneSource
 import queue
 
-Fs = 8000
-rtty = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=1, stop_bits=2)
-opts = SignalOpts(Fs=Fs, rtty=rtty)
+opts = SystemOpts.default()
 
-chunk_size = opts.nsamp // 5
-overlap_size = chunk_size // 2
-
-decode = DecodeCommon(oversampling=5, signal=opts)
+decode = DecodeCommon(oversampling=5, signal=opts.signal)
 source = MicrophoneSource(decode)
-engine = GoertzelEngine(GoertzelOpts(overlap_ratio=0.5, dft_len=256, decode=decode))
+engine = GoertzelEngine(opts.goertzel)
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
-squelch = Squelch(SquelchOpts(lower_thresh=0.2, upper_thresh=1, decode=decode))
+squelch = Squelch(opts.squelch)
 decoder = BaudotDecoder()
 
 num_msgs = 2
 
-pill_queue: PillQueue = queue.Queue()
-t = threading.Timer(10, lambda: pill_queue.put("stop"))
+pill_queue: CommandsQueueQueue = queue.Queue()
+t = threading.Timer(10, lambda: pill_queue.put(FullStopCommand()))
 
 generator = decode_stream(
     source,
     squelch,
     engine,
-    DecodeStreamOpts(
-        squelch_grace_percent=0.25, idle_bits=2, none_friction=0.2, decode=decode
-    ),
+    opts.stream,
     CommandsQueue(pill_queue),
 )
 
@@ -67,30 +53,27 @@ num_received = 0
 
 t.start()
 
-messages_received: list[RecvMessage | ProtocolDebug] = []
+messages_received: list[RecvMessage | StoppedMsg] = []
 for received in protocol(generator, decoder):
     messages_received.append(received)
     if isinstance(received, RecvMessage):
         logger.info(f"Received message: '{received.msg}'")
     t.cancel()
-    t = threading.Timer(10, lambda: pill_queue.put("stop"))
+    t = threading.Timer(10, lambda: pill_queue.put(FullStopCommand()))
     t.start()
 
 for received in messages_received:
     debug: ProtocolDebug
-    if isinstance(received, RecvMessage):
-        debug = received.debug
-    else:
-        debug = received
+    debug = received.debug
 
     fig, axs = plt.subplots(3, 1)
-    local_t = debug.decode.indices / Fs
+    local_t = debug.decode.indices / opts.signal.Fs
     axs[0].plot(local_t, debug.decode.envelope)
     if isinstance(received, RecvMessage):
         axs[0].set_title(f"RTTY Message '{received.msg}' with annotations")
     else:
         axs[0].set_title(f"Incomplete RTTY Message with annotations")
-    debug.decode.annotations.draw(axs[0], Fs=Fs)
+    debug.decode.annotations.draw(axs[0], Fs=opts.signal.Fs)
 
     axs[1].plot(local_t, debug.decode.envelope)
     axs[1].set_title("With ProtocolState")

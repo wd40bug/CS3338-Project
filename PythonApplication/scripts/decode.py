@@ -2,23 +2,16 @@ from loguru import logger
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
-from rtty_sdr.dsp.decode import Commanded, DecodeState, decode_stream, Code
+from rtty_sdr.dsp.decode import DecodeState, decode_stream, Code
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import Commands, CommandsQueue, CommandsQueueQueue
+from rtty_sdr.dsp.poisonPill import CommandsQueue, CommandsQueueQueue
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
-    DecodeCommon,
-    DecodeStreamOpts,
-    EnvelopeOpts,
-    GoertzelOpts,
-    RTTYOpts,
-    SignalOpts,
-    SquelchOpts,
     SystemOpts,
 )
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder, Shift
+from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 
 import numpy as np
 import numpy.typing as npt

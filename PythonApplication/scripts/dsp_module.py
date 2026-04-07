@@ -1,4 +1,3 @@
-import os
 import time
 from rtty_sdr.comms.broker import BrokerModule
 from rtty_sdr.comms.pubsub import PubSub
@@ -26,7 +25,7 @@ logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 msgs = ["HELLO", "WORLD", "!"]
-settings = SystemOpts.default(source="internal")
+settings = SystemOpts.default(source="internal", engine='envelope')
 registry = TopicsRegistry()
 registry.register("ui.send_internal", InternalSignalMsg)
 registry.register("ui.shutdown", None)
@@ -46,17 +45,14 @@ encoder = BaudotEncoder(settings.rtty.initial_shift)
 
 time.sleep(1)
 total_signal: list[npt.NDArray[np.float64]] = []
-total_t: list[npt.NDArray[np.float64]] = []
 for msg in msgs:
     send_message = SendMessage.create(msg, "KJ5OEH", encoder)
-    signal, t, _ = internal_signal(send_message.codes, settings.signal, 0.2)
+    signal, _, _ = internal_signal(send_message.codes, settings.signal, 0.2)
     total_signal.append(signal)
-    total_t.append(t)
     logger.trace(f"Signal of len {len(signal)} generated")
     pubsub.publish_message("ui.send_internal", InternalSignalMsg(signal))
 logger.info("Sent messages")
 signal = np.concatenate(total_signal)
-t = np.concatenate(total_t)
 
 debug: list[ProtocolDebug] = []
 num_messages = 0
@@ -88,7 +84,8 @@ while True:
 summed_debug = ProtocolDebug.combine(debug)
 
 fig, axs = plt.subplots(3, 1)
-local_t = t[: len(summed_debug.decode.envelope)]
+local_t = summed_debug.decode.indices / settings.signal.Fs
+logger.debug(f"Shape of envelope is {summed_debug.decode.envelope.shape}")
 axs[0].plot(local_t, summed_debug.decode.envelope)
 summed_debug.decode.annotations.draw(axs[0], Fs=settings.signal.Fs)
 
