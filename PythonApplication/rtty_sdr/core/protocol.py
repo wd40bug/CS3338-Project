@@ -1,23 +1,11 @@
-from collections.abc import Iterable
-
-from loguru import logger
-from numpy._core.numeric import indices
-from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 import crcmod.predefined
-from typing import Final, Iterator, Self
-from enum import IntEnum, auto
-from rtty_sdr.debug.debug_types import DebugCombineable
-from rtty_sdr.debug.state_changes import StateChanges
-from rtty_sdr.dsp.decode import DecodeYield, DecodeDebug
-import numpy as np
-import numpy.typing as npt
 import msgspec
+from typing import Self
 
-from rtty_sdr.dsp.poisonPill import Command
+from rtty_sdr.core.options import BaudotOptions
+from rtty_sdr.core.baudot import encode
 
-LengthLen: Final[int] = 2
-ChecksumLen: Final[int] = 4
-CallsignLen: Final[int] = 6
+
 
 crc16_xmodem = crcmod.predefined.mkCrcFun("xmodem")
 
@@ -36,19 +24,13 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
 
 class SendMessage(ProtocolMessage, frozen=True):
     @classmethod
-    def create(
-        cls,
-        msg: str,
-        callsign: str,
-        encoder: BaudotEncoder,
-        replace_invalid_with: str | None = None,
-    ) -> Self:
+    def create(cls, msg: str, callsign: str, opts: BaudotOptions) -> Self:
         length_str = f"{len(msg):02x}"
-        pre_checksum = encoder.encode(length_str + msg, replace_invalid_with)
+        pre_checksum, state = encode(length_str + msg, opts)
         checksum = calculate_checksum(pre_checksum)
         checksum_str = f"{checksum:4x}".upper()
         encoding = f"{length_str}{msg.upper()}{checksum_str}{callsign.upper()}"
-        codes = pre_checksum + encoder.encode(checksum_str + callsign)
+        codes = pre_checksum + encode(checksum_str + callsign, opts, state)[0]
         return cls(
             msg=msg,
             callsign=callsign,
@@ -57,34 +39,9 @@ class SendMessage(ProtocolMessage, frozen=True):
             codes=codes,
         )
 
-
-class ProtocolState(IntEnum):
-    Length = auto()
-    Data = auto()
-    Checksum = auto()
-    Callsign = auto()
-
-
-class ProtocolDebug(msgspec.Struct, frozen=True):
-    decode: DecodeDebug
-    states: list[ProtocolState]
-
-    @classmethod
-    def create(cls, decode: list[DecodeDebug], states: list[ProtocolState]) -> Self:
-        return cls(decode=DecodeDebug.combine(decode), states=states)
-
-    @classmethod
-    def combine(cls, debugs: list[Self]) -> Self:
-        return cls(
-            decode=DecodeDebug.combine([d.decode for d in debugs]),
-            states=[state for d in debugs for state in d.states],
-        )
-
-
 class RecvMessage(ProtocolMessage, frozen=True):
     calculatedChecksum: int
     validChecksum: bool
-    debug: ProtocolDebug
 
     @classmethod
     def create(
@@ -95,8 +52,6 @@ class RecvMessage(ProtocolMessage, frozen=True):
         codes: list[int],
         checksum_start_idx: int,
         checksum_str: str,
-        decode_debug: list[DecodeDebug],
-        states: list[ProtocolState],
     ) -> Self:
         checksum = int(checksum_str, 16)
         calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
@@ -108,117 +63,5 @@ class RecvMessage(ProtocolMessage, frozen=True):
             checksum=checksum,
             calculatedChecksum=calculatedChecksum,
             validChecksum=calculatedChecksum == checksum,
-            debug=ProtocolDebug.create(decode_debug, states),
         )
 
-
-class StoppedMsg(msgspec.Struct, frozen=True):
-    debug: ProtocolDebug
-    cmd: Command
-
-
-def protocol(
-    code_generator: Iterable[DecodeYield], decoder: BaudotDecoder
-) -> Iterator[RecvMessage | StoppedMsg]:
-    initial_shift = decoder.shift
-    state: ProtocolState = ProtocolState.Length
-    chars = ""
-    data_length = 0
-    codes = []
-    debugs: list[DecodeDebug] = []
-    checksum_start_idx = 0
-    states = StateChanges(state)
-
-    for resp, resp_debug in code_generator:
-        if len(resp_debug.indices) != 0:
-            index = resp_debug.indices[-1]
-        elif len(debugs) != 0:
-            for debug in reversed(debugs):
-                if len(debug.indices) != 0:
-                    index = debug.indices[-1]
-            else:
-                index = 0
-        else:
-            index = 0
-        debugs.append(resp_debug)
-        if resp.kind == "lost_signal":
-            state = ProtocolState.Length
-            states.change(index, state)
-            chars = ""
-            decoder.shift = initial_shift
-            continue
-        elif resp.kind == "command":
-            if resp.command.command == "restart":
-                yield StoppedMsg(
-                    debug=ProtocolDebug.create(
-                        debugs,
-                        states.build(index, ProtocolState.Length),
-                    ),
-                    cmd=resp.command,
-                )
-            elif resp.command.command == "stop":
-                yield StoppedMsg(
-                    debug=ProtocolDebug.create(
-                        debugs,
-                        states.build(index, ProtocolState.Length),
-                    ),
-                    cmd=resp.command,
-                )
-            return
-        code = resp.code
-
-        codes.append(code)
-        char = decoder.decode(code)
-        if char == "":
-            continue
-        chars += char
-        match state:
-            case ProtocolState.Length:
-                if len(chars) == LengthLen:
-                    try:
-                        data_length = int(chars, 16)
-                    except ValueError as e:
-                        logger.warning(
-                            f"Received msg with invalid len field '{chars}' restarting"
-                        )
-                        chars = ""
-                        decoder.shift = initial_shift
-                    state = (
-                        ProtocolState.Data
-                        if data_length != 0
-                        else ProtocolState.Checksum
-                    )
-                    states.change(index, state)
-            case ProtocolState.Data:
-                if len(chars) == LengthLen + data_length:
-                    state = ProtocolState.Checksum
-                    states.change(index, state)
-            case ProtocolState.Checksum:
-                # Start
-                if len(chars) == LengthLen + data_length:
-                    checksum_start_idx = len(codes)
-                # End
-                if len(chars) == LengthLen + data_length + ChecksumLen:
-                    state = ProtocolState.Callsign
-                    states.change(index, state)
-            case ProtocolState.Callsign:
-                if len(chars) == LengthLen + data_length + ChecksumLen + CallsignLen:
-                    msg = chars[LengthLen : LengthLen + data_length]
-                    checksum = chars[
-                        LengthLen + data_length : LengthLen + data_length + ChecksumLen
-                    ]
-                    callsign = chars[LengthLen + data_length + ChecksumLen :]
-                    state = ProtocolState.Length
-                    yield RecvMessage.create(
-                        msg,
-                        callsign,
-                        chars,
-                        codes,
-                        checksum_start_idx,
-                        checksum,
-                        debugs,
-                        states.build(index, state),
-                    )
-                    debugs.clear()
-                    chars = ""
-                    decoder.shift = initial_shift

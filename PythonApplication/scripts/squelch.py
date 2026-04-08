@@ -5,7 +5,7 @@ from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotEncoder
+from rtty_sdr.core.baudot import encode
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,8 +13,7 @@ import matplotlib.pyplot as plt
 opts = SystemOpts.default()
 
 message = "HI"
-encoder = BaudotEncoder()
-encoded = encoder.encode(message)
+encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal, 0.2)
 
 signal = awgn(signal, 5)

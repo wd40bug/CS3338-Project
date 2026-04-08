@@ -7,11 +7,12 @@ from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.poisonPill import CommandsQueue, CommandsQueueQueue
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
+    Shift,
     SystemOpts,
 )
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
+from rtty_sdr.core.baudot import decode, encode
 
 import numpy as np
 import numpy.typing as npt
@@ -20,10 +21,9 @@ import queue
 
 from rtty_sdr.dsp.squelch import Squelch
 
-opts = SystemOpts.default()
+opts = SystemOpts.default(initial_shift=Shift.LTRS)
 message = "HI"
-encoder = BaudotEncoder()
-encoded = encoder.encode(message)
+encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
 
 signal = awgn(signal, 10)
@@ -44,8 +44,7 @@ squelch_vals: npt.NDArray[np.int_] = np.array([])
 squelch = Squelch(
     opts.squelch
 )
-decoder = BaudotDecoder()
-
+shift: Shift | None = None
 for resp, debug in decode_stream(
     signal_source,
     squelch,
@@ -54,7 +53,8 @@ for resp, debug in decode_stream(
     pills,
 ):
     if isinstance(resp, Code):
-        logger.info(f"Code: {resp.code} -> {decoder.decode(resp.code)}")
+        decoded, shift = decode(resp.code, opts.baudot, shift)
+        logger.info(f"Code: {resp.code} -> {decoded}")
     else:
         logger.info(f"Code: {resp}")
     envelope = np.concat((envelope, debug.envelope))

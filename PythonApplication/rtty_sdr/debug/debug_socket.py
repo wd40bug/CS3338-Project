@@ -6,8 +6,7 @@ import zmq
 from rtty_sdr.comms.broker import DEBUG_SOCKET
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.comms.topics import TopicsRegistry
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage
-from rtty_sdr.dsp.DSP import RemainderMsg
+from rtty_sdr.dsp.protocol_decode import ProtocolDebug
 
 
 class DebugSocket(threading.Thread):
@@ -26,9 +25,9 @@ class DebugSocket(threading.Thread):
         while True:
             topic, payload = pubsub.recv_message()
             logger.debug(f"msg sent {topic}")
-            if topic == "dsp.received" or topic == "dsp.debug_remainder":
-                assert isinstance(payload, RemainderMsg) or isinstance(payload, RecvMessage)
-                self.__debugs.append(payload.debug)
+            if topic == "dsp.debug":
+                assert isinstance(payload, ProtocolDebug)
+                self.__debugs.append(payload)
             elif topic == "system.shutdown":
                 logger.debug("Shutting down debug socket")
                 return

@@ -1,17 +1,15 @@
-from typing import Deque, assert_never, Final
+from typing import Deque, Final
 from loguru import logger
 import loguru
 from rich.text import Text
 from rich.align import Align
 from textual import work
 from textual.app import App, ComposeResult
-from textual.binding import BindingType
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Footer, Input, RichLog, Static
+from textual.widgets import Header, Footer, Input, RichLog
 
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.comms.topics import TopicsRegistry
-from rtty_sdr.core.baudot import BaudotEncoder
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import RecvMessage, SendMessage
 from rtty_sdr.debug.internal_signal import InternalSignalMsg, internal_signal
@@ -129,7 +127,7 @@ class RttyTerminal(App):
         msg = SendMessage.create(
                     message.value,
                     self.__settings.callsign,
-                    BaudotEncoder(self.__settings.rtty.initial_shift),
+                    self.__settings.baudot,
                 )
         if self.__settings.source == 'microphone':
             self.__tx_pubsub.publish_message(

@@ -1,16 +1,18 @@
-2026-04-08 00:55:34.524 | INFO     | rtty_sdr.dsp.DSP:run:117 - Running DSP Process
-2026-04-08 00:55:38.015 | TRACE    | rtty_sdr.dsp.DSP:run:130 - Received ui.send_internal msg
-2026-04-08 00:55:38.025 | TRACE    | rtty_sdr.dsp.DSP:run:142 - signal of len 31168 received
-2026-04-08 00:55:38.025 | TRACE    | rtty_sdr.dsp.sources:read_chunk:36 - Received 1 samples
-2026-04-08 00:55:38.181 | TRACE    | rtty_sdr.dsp.DSP:run:84 - Got a message signal of len 30761
-2026-04-08 002026-04-08 00:55:46.542 | DEBUG    | rtty_sdr.debug.debug_socket:run:28 - msg sen2026-04-08 00:55:462026-04-08 00:55:46.797 | DEBUG    | rtty_sdr.debug.debug_socket:run:28 - msg sent dsp.received
-2026-04-08 00:55:53.701 | INFO     | rtty_sdr.ui.TUI:action_quit:149 - User requested exit. System shutdown broadcasted.
-2026-04-08 00:55:53.703 | TRACE    | rtty_sdr.c2026-04-08 00:55:53.707 | TRACE    | rtty_sdr.dsp.DSP:run:130 - Received system.shutdown msg
-2026-04-08 00:55:53.723 | TRACE    | rtty_sdr.dsp.DSP:run:87 - Got a debug signal of len 412
-2026-04-08 00:55:53.724 | TRACE    | rtty_sdr.dsp.DSP:run:100 - Dsp Runner ending
-2026-04-08 00:55:53.724 | INFO     | rtty_sdr.dsp.DSP:run:138 - Ending DSP process
-on done
-2026-04-08 00:55:53.705 | INFO     | rtty_sdr.controller.controller:run:75 - Ending Controller thread
-2026-04-08 00:55:53.905 | INFO     | __main__:<module>:60 - UI Exited with code: None
-2026-04-08 00:55:53.906 | INFO     | rtty_sdr.comms.broker:run:53 - Context terminated. Shutting down gracefully...
-2026-04-08 00:55:53.906 | INFO     | rtty_sdr.comms.broker:__cleanup:79 - Offline.
+2026-04-08 02:26:49.875 | INFO     | rtty_sdr.dsp.DSP:run:106 - Running DSP Process
+2026-04-08 02:26:50.907 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received ui.send_internal msg
+2026-04-08 02:26:50.912 | TRACE    | rtty_sdr.dsp.DSP:run:131 - signal of len 31168 received
+2026-04-08 02:26:50.912 | TRACE    | rtty_sdr.dsp.sources:read_chunk:36 - Received 1 samples
+2026-04-08 02:26:51.058 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 30761
+2026-04-08 02:26:58.881 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received ui.send_internal msg
+2026-04-08 02:26:58.2026-04-08 02:26:58.881 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent ui.send_internal
+2026-04-08 02:26:59.239 | DEBUG    | rtty_sdr.debug.debug_socket:r2026-04-08 02:26:59.246 | TRAC2026-04-08 02:26:59.265 | DEBUG    | rtty_sdr.debug.debug_s2026-04-08 02:27:02.725 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received system.shutdown msg
+2026-04-08 02:27:02.736 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 427
+2026-04-08 02:27:02.736 | TRACE    | rtty_sdr.dsp.DSP:run:88 - Dsp Runner ending
+2026-04-08 02:27:02.737 | INFO     | rtty_sdr.dsp.DSP:run:127 - Ending DSP process
+mmunication done
+2026-04-08 02:27:02.721 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent system.shutdown
+2026-04-08 02:27:02.722 | INFO     | rtty_sdr.controller.controller:run:75 - Ending Controller thread
+2026-04-08 02:27:02.722 | DEBUG    | rtty_sdr.debug.debug_socket:run:32 - Shutting down debug socket
+2026-04-08 02:27:02.924 | INFO     | __main__:<module>:57 - UI Exited with code: None
+2026-04-08 02:27:02.924 | INFO     | rtty_sdr.comms.broker:run:53 - Context terminated. Shutting down gracefully...
+2026-04-08 02:27:02.925 | INFO     | rtty_sdr.comms.broker:__cleanup:79 - Offline.

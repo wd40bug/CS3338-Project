@@ -1,33 +1,37 @@
-from rtty_sdr.core.baudot import BaudotEncoder, Shift
+from rtty_sdr.core.baudot import Shift, encode
 import pytest
+
+from rtty_sdr.core.options import BaudotOptions
 
 def test_baudot_shift_logic():
     # Start in LTRS
-    encoder = BaudotEncoder(Shift.LTRS)
-
+    opts = BaudotOptions(initial_shift=Shift.LTRS)
     # 'A' (LTRS) -> '3' (FIGS) -> 'E' (LTRS)
-    result = encoder.encode("A3E")
+    result, shift = encode("A3E", opts)
     assert result == [3, 27, 1, 31, 1]
+    assert shift == Shift.LTRS
 
 
 def test_baudot_invalid_replacement():
-    encoder = BaudotEncoder(Shift.LTRS)
+    opts = BaudotOptions(initial_shift=Shift.LTRS, replace_invalid_with=" ")
     # Accessing the mangled class name for the test
 
     # '@' is invalid, should be replaced by Space (4)
-    result = encoder.encode("A@B", replace_invalid_with=" ")
+    result, shift = encode("A@B", opts)
     assert result == [3, 4, 25]
+    assert shift == Shift.LTRS
 
 
 def test_exclamation():
-    encoder = BaudotEncoder()
-    ret = encoder.encode("!")
+    opts = BaudotOptions(initial_shift=Shift.LTRS)
+    ret, shift = encode("!", opts)
     assert ret == [27, 13]
+    assert shift == Shift.FIGS
 
 
 def test_baudot_exception():
-    encoder = BaudotEncoder(Shift.LTRS)
+    opts = BaudotOptions(initial_shift=Shift.LTRS)
 
     with pytest.raises(ValueError):
-        encoder.encode("~")
+        encode("~", opts)
 

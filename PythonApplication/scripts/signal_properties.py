@@ -2,20 +2,18 @@ import matplotlib.pyplot as plt
 import scipy.signal as sig
 import numpy as np
 
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import Shift, SystemOpts
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotEncoder
+from rtty_sdr.core.baudot import encode
 
 
-opts = SystemOpts.default(mark=50, shift=50, baud=10)
+opts = SystemOpts.default(mark=50, shift=50, baud=10, initial_shift=Shift.LTRS)
 Fs = opts.signal.Fs
 
 rtty = opts.rtty
 message = "HI"
 
-encoder = BaudotEncoder()
-
-encoded = encoder.encode(message)
+encoded, _ = encode(message, opts.baudot)
 
 signal, t, annotations = internal_signal(encoded, opts.signal, 0.1)
 

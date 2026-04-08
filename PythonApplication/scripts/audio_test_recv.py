@@ -1,7 +1,8 @@
 import threading
 
 from loguru import logger
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, StoppedMsg, protocol
+from rtty_sdr.core.protocol import RecvMessage
+from rtty_sdr.dsp.protocol_decode import ProtocolDebug, StoppedMsg, protocol
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
@@ -9,12 +10,10 @@ from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.poisonPill import CommandsQueue, CommandsQueueQueue, FullStopCommand
 from rtty_sdr.dsp.squelch import Squelch
-from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
     SystemOpts,
     DecodeCommon
 )
-from rtty_sdr.core.baudot import BaudotDecoder
 
 import numpy as np
 import numpy.typing as npt
@@ -25,8 +24,7 @@ import queue
 
 opts = SystemOpts.default()
 
-decode = DecodeCommon(oversampling=5, signal=opts.signal)
-source = MicrophoneSource(decode)
+source = MicrophoneSource(opts.decode)
 engine = GoertzelEngine(opts.goertzel)
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
@@ -34,7 +32,6 @@ envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
 squelch = Squelch(opts.squelch)
-decoder = BaudotDecoder()
 
 num_msgs = 2
 
@@ -54,7 +51,8 @@ num_received = 0
 t.start()
 
 messages_received: list[RecvMessage | StoppedMsg] = []
-for received in protocol(generator, decoder):
+debugs: list[ProtocolDebug] = []
+for received, debug in protocol(generator, opts.baudot):
     messages_received.append(received)
     if isinstance(received, RecvMessage):
         logger.info(f"Received message: '{received.msg}'")
@@ -62,10 +60,7 @@ for received in protocol(generator, decoder):
     t = threading.Timer(10, lambda: pill_queue.put(FullStopCommand()))
     t.start()
 
-for received in messages_received:
-    debug: ProtocolDebug
-    debug = received.debug
-
+for received, debug in zip(messages_received, debugs):
     fig, axs = plt.subplots(3, 1)
     local_t = debug.decode.indices / opts.signal.Fs
     axs[0].plot(local_t, debug.decode.envelope)

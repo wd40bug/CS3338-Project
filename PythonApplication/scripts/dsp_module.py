@@ -2,11 +2,12 @@ import time
 from rtty_sdr.comms.broker import BrokerModule
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.comms.topics import TopicsRegistry
-from rtty_sdr.core.baudot import BaudotEncoder
+from rtty_sdr.core.baudot import encode
 from rtty_sdr.core.options import SystemOpts
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, SendMessage
+from rtty_sdr.core.protocol import RecvMessage, SendMessage
+from rtty_sdr.dsp.protocol_decode import ProtocolDebug
 from rtty_sdr.debug.debug_socket import DebugSocket
-from rtty_sdr.dsp.DSP import DspModule, RemainderMsg
+from rtty_sdr.dsp.DSP import DspModule
 from rtty_sdr.debug.internal_signal import internal_signal, InternalSignalMsg
 import matplotlib.pyplot as plt
 
@@ -39,15 +40,12 @@ broker.start()
 debug_socket.start()
 threading.Thread(target=dsp.run).start()
 
-pubsub = PubSub(["dsp.received", "dsp.debug_remainder"], registry)
-
-encoder = BaudotEncoder(settings.rtty.initial_shift)
+pubsub = PubSub(["dsp.received", "dsp.debug", "dsp.done"], registry)
 
 time.sleep(1)
 total_signal: list[npt.NDArray[np.float64]] = []
 for msg in msgs:
-    encoder.set_shift(settings.rtty.initial_shift)
-    send_message = SendMessage.create(msg, "KJ5OEH", encoder)
+    send_message = SendMessage.create(msg, "KJ5OEH", settings.baudot)
     signal, _, _ = internal_signal(send_message.codes, settings.signal, 0.2)
     total_signal.append(signal)
     logger.trace(f"Signal of len {len(signal)} generated")
@@ -56,6 +54,7 @@ logger.info("Sent messages")
 signal = np.concatenate(total_signal)
 
 debug: list[ProtocolDebug] = []
+recv_msgs: list[str] = []
 num_messages = 0
 while True:
     recv = pubsub.recv_message_timeout(10_000)
@@ -69,16 +68,16 @@ while True:
         case "dsp.received":
             assert isinstance(msg, RecvMessage)
             logger.info(f"Msg '{msg.msg}'")
-            debug.append(msg.debug)
+            recv_msgs.append(msg.msg)
             num_messages += 1
             if num_messages == len(msgs):
                 pubsub.publish_message("system.shutdown", None)
                 logger.info(f"Shutting down after receiving all {len(msgs)} messages")
-        case "dsp.debug_remainder":
-            assert isinstance(msg, RemainderMsg)
-            debug.append(msg.debug)
-            if msg.is_done:
-                break
+        case "dsp.debug":
+            assert isinstance(msg, ProtocolDebug)
+            debug.append(msg)
+        case "dsp.done":
+            break;
         case _:
             raise RuntimeError(f"Received unsubscribed topic: {topic}")
 
@@ -99,6 +98,7 @@ axs[2].plot(local_t, summed_debug.decode.envelope)
 axs[2].set_title("With Squelch")
 plot_shaded_squelch(local_t, fig.axes[2], summed_debug.decode.squelch)
 axs[2].legend(bbox_to_anchor=(1.00, 0.5), loc="center left", borderaxespad=0.0)
+logger.info(f"Final received messages were: {recv_msgs}")
 plt.show()
 
 logger.info("Shutting down")

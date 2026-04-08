@@ -2,7 +2,7 @@ from queue import Queue
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import SendMessage
 from rtty_sdr.core.baudot import BaudotEncoder
-from rtty_sdr.controller.controller import ToESP, send_receive
+from rtty_sdr.controller.espcom import EspComms
 
 
 encoder = BaudotEncoder()

@@ -1,18 +1,17 @@
 from rtty_sdr.dsp.engines import EnvelopeEngine
 from rtty_sdr.dsp.sources import MockSignalSource
-from rtty_sdr.core.options import DecodeCommon, EnvelopeOpts, SignalOpts, RTTYOpts, SystemOpts
+from rtty_sdr.core.options import DecodeCommon, EnvelopeOpts, Shift, SignalOpts, RTTYOpts, SystemOpts
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotEncoder
+from rtty_sdr.core.baudot import encode
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 Fs = 8000
-opts = SystemOpts.default()
+opts = SystemOpts.default(initial_shift=Shift.LTRS)
 message = "HI"
-encoder = BaudotEncoder()
-encoded = encoder.encode(message)
+encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
 
 signal = awgn(signal, 10)

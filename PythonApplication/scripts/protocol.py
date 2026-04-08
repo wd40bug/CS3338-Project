@@ -1,28 +1,20 @@
 import queue
 
 from loguru import logger
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, SendMessage, protocol
+from rtty_sdr.core.protocol import RecvMessage, SendMessage
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
+from rtty_sdr.dsp.protocol_decode import protocol
 from rtty_sdr.dsp.poisonPill import CommandsQueueQueue, CommandsQueue
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
-from rtty_sdr.core.options import (
-    DecodeCommon,
-    DecodeStreamOpts,
-    EnvelopeOpts,
-    GoertzelOpts,
-    RTTYOpts,
-    SignalOpts,
-    SquelchOpts,
-    SystemOpts,
-)
+from rtty_sdr.core.options import SystemOpts
+
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.baudot import BaudotDecoder, BaudotEncoder
 
 import numpy as np
 import numpy.typing as npt
@@ -32,8 +24,7 @@ import sys
 opts = SystemOpts.default()
 message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
-encoder = BaudotEncoder()
-send_message = SendMessage.create(message, "KJ5OEH", encoder)
+send_message = SendMessage.create(message, "KJ5OEH", opts.baudot)
 logger.info(f"Sending: {send_message.encoding}")
 encoded = send_message.codes
 signal, t, annotations = internal_signal(encoded, opts.signal, 0.05)
@@ -52,25 +43,18 @@ envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 
 squelch = Squelch(opts.squelch)
-decoder = BaudotDecoder()
 
 generator = decode_stream(
     signal_source,
     squelch,
     engine,
-    DecodeStreamOpts(
-        squelch_grace_percent=0.25, idle_bits=2, decode=opts.decode, none_friction=2
-    ),
+    opts.stream,
     pills,
 )
 
-for received in protocol(generator, decoder):
-    debug: ProtocolDebug
+for received, debug in protocol(generator, opts.baudot):
     if isinstance(received, RecvMessage):
         logger.info(f"Received: {received.encoding}")
-        debug = received.debug
-    else:
-        debug = received.debug
 
     fig, axs = plt.subplots(3, 1)
     local_t = t[: len(debug.decode.envelope)]

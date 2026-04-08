@@ -1,9 +1,8 @@
 # from dataclasses import dataclass, field
+from enum import IntEnum
 from typing import Final, Literal, ClassVar, Self
 
 from msgspec import Struct
-
-from rtty_sdr.core.baudot import Shift
 
 
 class RTTYOpts(Struct, frozen=True):
@@ -13,7 +12,6 @@ class RTTYOpts(Struct, frozen=True):
     shift: int
     pre_msg_stops: int
     post_msg_stops: int
-    initial_shift: Shift
 
     data_bits: ClassVar[Final[int]] = 5
 
@@ -49,6 +47,14 @@ class DecodeCommon(Struct, frozen=True):
     @property
     def chunk_size(self) -> int:
         return self.signal.nsamp // self.oversampling
+
+class Shift(IntEnum):
+    LTRS = 31
+    FIGS = 27
+
+class BaudotOptions(Struct, frozen=True):
+    initial_shift: Shift
+    replace_invalid_with: str | None = None
 
 
 class GoertzelOpts(Struct, frozen=True):
@@ -102,6 +108,7 @@ class SystemOpts(Struct, frozen=True):
     goertzel: GoertzelOpts
     squelch: SquelchOpts
     stream: DecodeStreamOpts
+    baudot: BaudotOptions
 
     # System Options
     engine: Literal["goertzel", "envelope"]
@@ -117,7 +124,6 @@ class SystemOpts(Struct, frozen=True):
         shift: int = 170,
         pre_msg_stops: int = 1,
         post_msg_stops: int = 1,
-        initial_shift: Shift = Shift.FIGS,
         Fs: int = 8000,
         oversampling: int = 5,
         envelope_generator_order: int = 4,
@@ -132,6 +138,8 @@ class SystemOpts(Struct, frozen=True):
         squelch_grace_percent: float = 0.25,
         idle_bits: float = 2,
         none_friction: float = 0.1,
+        initial_shift: Shift = Shift.FIGS,
+        replace_invalid_with: str | None = None,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
@@ -143,10 +151,12 @@ class SystemOpts(Struct, frozen=True):
             shift=shift,
             pre_msg_stops=pre_msg_stops,
             post_msg_stops=post_msg_stops,
-            initial_shift=initial_shift,
         )
         signal = SignalOpts(Fs=Fs, rtty=rtty)
-        decode = DecodeCommon(oversampling=oversampling, signal=signal)
+        decode = DecodeCommon(
+            oversampling=oversampling,
+            signal=signal,
+        )
 
         return cls(
             rtty=rtty,
@@ -173,6 +183,9 @@ class SystemOpts(Struct, frozen=True):
                 idle_bits=idle_bits,
                 decode=decode,
                 none_friction=none_friction,
+            ),
+            baudot=BaudotOptions(
+                initial_shift=initial_shift, replace_invalid_with=replace_invalid_with
             ),
             engine=engine,
             source=source,

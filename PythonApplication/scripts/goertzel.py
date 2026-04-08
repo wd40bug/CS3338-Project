@@ -2,16 +2,15 @@ from rtty_sdr.dsp.engines import GoertzelEngine
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.debug.awgn import awgn
 from rtty_sdr.debug.internal_signal import internal_signal
-from rtty_sdr.core.options import SystemOpts
-from rtty_sdr.core.baudot import BaudotEncoder
+from rtty_sdr.core.options import Shift, SystemOpts
+from rtty_sdr.core.baudot import encode
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-opts = SystemOpts.default()
+opts = SystemOpts.default(initial_shift=Shift.LTRS)
 message = "HI"
-encoder = BaudotEncoder()
-encoded = encoder.encode(message)
+encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
 
 powers = np.array([])

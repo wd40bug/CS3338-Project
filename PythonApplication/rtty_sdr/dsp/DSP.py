@@ -3,10 +3,8 @@ import queue
 import threading
 
 from loguru import logger
-import msgspec
 from rtty_sdr.comms.topics import TopicsRegistry
 from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
-from rtty_sdr.core.baudot import BaudotDecoder
 from rtty_sdr.debug.internal_signal import InternalSignalMsg
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
@@ -19,7 +17,8 @@ from rtty_sdr.dsp.poisonPill import (
 )
 from typing import Iterator, assert_never
 
-from rtty_sdr.core.protocol import ProtocolDebug, RecvMessage, StoppedMsg, protocol
+from rtty_sdr.dsp.protocol_decode import ProtocolDebug, StoppedMsg, protocol
+from rtty_sdr.core.protocol import RecvMessage
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.comms.pubsub import PubSub
@@ -27,12 +26,6 @@ from rtty_sdr.dsp.sources import MicrophoneSource, MockSignalSource
 
 import numpy as np
 import numpy.typing as npt
-
-
-class RemainderMsg(msgspec.Struct, frozen=True):
-    debug: ProtocolDebug
-    is_done: bool
-
 
 class RunDsp(threading.Thread):
     def __init__(
@@ -53,7 +46,7 @@ class RunDsp(threading.Thread):
         settings: SystemOpts,
         commands: Commands,
         static_data_queue: queue.Queue[npt.NDArray[np.float64]]
-    ) -> Iterator[RecvMessage | StoppedMsg]:
+    ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
         source = (
             MicrophoneSource(opts=settings.decode)
             if settings.source == "microphone"
@@ -67,9 +60,8 @@ class RunDsp(threading.Thread):
             if settings.engine == "goertzel"
             else EnvelopeEngine(settings.envelope)
         )
-        baudot_decoder = BaudotDecoder(settings.rtty.initial_shift)
         decode = decode_stream(source, squelch, engine, settings.stream, commands)
-        return protocol(decode, baudot_decoder)
+        return protocol(decode, settings.baudot)
 
     @catch_and_broadcast
     def run(self) -> None:
@@ -78,25 +70,21 @@ class RunDsp(threading.Thread):
             self.__settings, self.__commands, self.__static_data_queue
         )
         while True:
-            item = next(pipeline)
+            item, debug = next(pipeline)
             if isinstance(item, RecvMessage):
                 pubsub.publish_message("dsp.received", item)
-                logger.trace(f"Got a message signal of len {len(item.debug.decode.envelope)}")
-            else:
-                assert isinstance(item, StoppedMsg)
-                logger.trace(f"Got a debug signal of len {len(item.debug.decode.envelope)}")
-                pubsub.publish_message(
-                    "dsp.debug_remainder",
-                    RemainderMsg(item.debug, item.cmd.command == "stop"),
-                )
+            pubsub.publish_message('dsp.debug', debug)
+            logger.trace(f"Got a signal of len {len(debug.decode.envelope)}")
+            if isinstance(item, StoppedMsg):
                 match item.cmd.command:
-                    # TODO: Do something with the ProtocolDebug we get here
                     case "restart":
+                        assert isinstance(item.cmd, RestartCommand)
                         self.__settings = item.cmd.new_settings
                         pipeline = self.create_pipeline(
                             self.__settings, self.__commands, self.__static_data_queue
                         )
                     case "stop":
+                        pubsub.publish_message('dsp.done', None)
                         logger.trace("Dsp Runner ending")
                         return
                     case _:
@@ -109,7 +97,8 @@ class DspModule(multiprocessing.Process):
         self.__default_settings = default_settings
         registry.register("dsp.received", RecvMessage)
         registry.register("dsp.receiving", None)
-        registry.register("dsp.debug_remainder", RemainderMsg)
+        registry.register("dsp.debug", ProtocolDebug)
+        registry.register("dsp.done", None)
         self.__registry = registry
 
     @catch_and_broadcast

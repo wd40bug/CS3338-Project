@@ -32,9 +32,6 @@ temp_handler_id = logger.add(
 )
 
 if __name__ == "__main__":
-
-    
-
     settings = SystemOpts.default(source="internal", engine='goertzel')
 
 
