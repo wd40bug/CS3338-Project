@@ -13,7 +13,9 @@ class StateChanges[T]:
         self.__first = 0
 
     def change(self, index: int, state: T):
-        assert index not in self.__state_changes
+        assert index not in self.__state_changes, (
+            f"Tried to overwrite state {self.__state_changes[index]} @ {index} with {state}"
+        )
         self.__state_changes[index] = state
 
     def build(self, index: int, default: T) -> list[T]:
@@ -30,14 +32,16 @@ class StateChanges[T]:
         self.__state_changes[index + 1] = default
         return ret
 
-def get_colors_from_colormap(n, colormap='viridis'):
+
+def get_colors_from_colormap(n, colormap="viridis"):
     cmap = plt.get_cmap(colormap)
     colors = []
     for i in range(n):
         # Sample colors evenly from the colormap's range
         color = cmap(i / n)
-        colors.append(color[:3]) # Get RGB values, ignore alpha
+        colors.append(color[:3])  # Get RGB values, ignore alpha
     return colors
+
 
 T = TypeVar("T", bound=Enum)
 

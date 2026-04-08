@@ -20,6 +20,7 @@ logger.remove(0)
 logger.add("log.log", level="TRACE", mode="w", enqueue=True)
 early_logs: Final[Deque[loguru.Message]] = collections.deque(maxlen=500)
 
+
 def temp_memory_sink(message: loguru.Message) -> None:
     early_logs.append(message)
 
@@ -29,8 +30,9 @@ temp_handler_id = logger.add(
 )
 
 if __name__ == "__main__":
-    settings = SystemOpts.default(source="internal", engine='goertzel')
-
+    settings = SystemOpts.default(
+        source="microphone", engine="goertzel", pre_msg_stops=20
+    )
 
     # Required for safe cross-platform multiprocessing, though
     # openSUSE handles standard fork() well.

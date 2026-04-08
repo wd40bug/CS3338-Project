@@ -76,7 +76,7 @@ class ControllerModule(threading.Thread):
                 esp_comm.join()
                 logger.info("Ending Controller thread")
                 return
-            elif topic == "ui.send":
+            elif topic == "ui.send_message":
                 assert isinstance(payload, SendMessage)
                 msgqueue.put(ToESP(payload.codes, self.__settings.rtty))
 

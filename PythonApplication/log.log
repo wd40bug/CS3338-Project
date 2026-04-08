@@ -1,19 +1,31 @@
-2026-04-08 02:55:57.944 | INFO     | rtty_sdr.dsp.DSP:run:106 - Running DSP Process
-2026-04-08 02:55:59.227 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received ui.send_internal msg
-2026-04-08 02:55:59.227 | TRACE    | rtty_sdr.dsp.DSP:run:131 - signal of len 31168 received
-2026-04-08 02:55:59.249 | TRACE    | rtty_sdr.dsp.sources:read_chunk:36 - Received 1 samples
-2026-04-08 02:55:59.398 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 30761
-2026-04-08 02:56:06.115 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received ui.send_internal msg
-2026-04-08 02:56:06.2026-04-08 02:56:06.123 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent ui.send_internal
-2026-04-08 02:56:06.303 | DEBUG    | rtty_sdr.debug.debug_socket:r2026-04-08 02:56:06.306 | TRAC2026-04-08 02:56:06.320 | DEBUG    | rtty_sdr.debug.debug_s2026-04-08 02:56:09.328 | TRACE   2026-04-08 02:56:09.333 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent ui.send_internal
-2026-04-08 02:56:09.601 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent dsp.received
-2026-04-08 02:56:09.618 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent dsp.debug
-2026-04-08 02:56:48.236 | INFO     | rtty_sdr.2026-04-08 02:56:48.237 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received sy2026-04-08 02:56:42026-04-08 02:56:48.264 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 432
-2026-04-08 02:56:48.264 | TRACE    | rtty_sdr.dsp.DSP:run:88 - Dsp Runner ending
-2026-04-08 02:56:48.265 | INFO     | rtty_sdr.dsp.DSP:run:127 - Ending DSP process
-:run:32 - Shutting down debug socket
-2026-04-08 02:56:48.238 | TRACE    | rtty_sdr.controller.controller:run:39 - Esp Communication done
-2026-04-08 02:56:48.239 | INFO     | rtty_sdr.controller.controller:run:77 - Ending Controller thread
-2026-04-08 02:56:48.439 | INFO     | __main__:<module>:54 - UI Exited with code: None
-2026-04-08 02:56:48.440 | INFO     | rtty_sdr.comms.broker:run:54 - Context terminated. Shutting down gracefully...
-2026-04-08 02:56:48.440 | INFO     | rtty_sdr.comms.broker:run:67 - Offline.
+2026-04-08 04:08:54.082 | INFO     | rtty_sdr.dsp.DSP:run:106 - Running DSP Process
+2026-04-08 04:08:58.644 | DEBUG    | rtty_sdr.dsp.protocol_decode:protocol:98 - Message with len 3
+2026-04-08 04:09:01.940 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 62576
+2026-04-08 04:09:10.324 | DEBUG    | rtty_sdr.dsp.protocol_decode:protocol:98 - Message with len 15
+2026-04-08 04:09:15.464 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 108045
+2026-04-08 04:09:46.979 | TRACE    | rtty_sdr.dsp.DSP:run:119 - Received system.shutdown msg
+2026-04-08 04:09:47.046 | TRACE    | rtty_sdr.dsp.DSP:run:77 - Got a signal of len 252319
+2026-04-08 04:09:47.046 | TRACE    | rtty_sdr.dsp.DSP:run:88 - Dsp Runner ending
+2026-04-08 04:09:47.050 | INFO     | rtty_sdr.dsp.DSP:run:127 - Ending DSP process
+ug.debug_socket:run:27 - msg sent dsp.received
+2026-04-08 04:09:01.955 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent dsp.debug
+2026-04-08 04:09:01.955 | TRACE    | rtty_sdr.controller.espcom:send_receive:41 - b'Success: Stream Parsed\r\n'
+2026-04-08 04:09:01.956 | DEBUG    | rtty_sdr.controller.controller:run:44 - Successfully sent message to ESP
+2026-04-08 04:09:01.957 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent controller.sent
+2026-04-08 04:09:09.143 | TRACE    | rtty_sdr.controller.controller:run:69 - Received ui.send_message msg
+2026-04-08 04:09:09.146 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent ui.send_message
+2026-04-08 04:09:09.147 | TRACE    | rtty_sdr.controller.espcom:send_receive:38 - Wrote to esp: b'{"message":[22,31,13,24,28,26,4,6,16,4,19,24,10,15,5,27,13,13,13,31,25,27,21,6,1,31,15,11,27,16,31,24,1,20],"options":{"stop_bits":1.5,"baud":45.45,"mark":2125,"shift":170,"pre_msg_stops":20,"post_msg_stops":1}}'
+2026-04-08 04:09:15.440 | TRACE    | rtty_sdr.controller.espcom:send_receive:41 - b'Success: Stream Parsed\r\n'
+2026-04-08 04:09:15.441 | DEBUG    | rtty_sdr.controller.controller:run:44 - Successfully sent message to ESP
+2026-04-08 04:09:15.449 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent controller.sent
+2026-04-08 04:09:15.453 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent dsp.received
+2026-04-08 04:09:15.485 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent dsp.debug
+2026-04-08 04:09:46.978 | INFO     | rtty_sdr.ui.TUI:action_quit:147 - User requested exit. System shutdown broadcasted.
+2026-04-08 04:09:46.979 | TRACE    | rtty_sdr.controller.controller:run:69 - Received system.shutdown msg
+2026-04-08 04:09:46.979 | DEBUG    | rtty_sdr.debug.debug_socket:run:27 - msg sent system.shutdown
+2026-04-08 04:09:46.980 | DEBUG    | rtty_sdr.debug.debug_socket:run:32 - Shutting down debug socket
+2026-04-08 04:09:46.981 | TRACE    | rtty_sdr.controller.controller:run:39 - Esp Communication done
+2026-04-08 04:09:46.981 | INFO     | rtty_sdr.controller.controller:run:77 - Ending Controller thread
+2026-04-08 04:09:47.182 | INFO     | __main__:<module>:56 - UI Exited with code: None
+2026-04-08 04:09:47.231 | INFO     | rtty_sdr.comms.broker:run:54 - Context terminated. Shutting down gracefully...
+2026-04-08 04:09:47.232 | INFO     | rtty_sdr.comms.broker:run:67 - Offline.

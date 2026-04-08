@@ -53,16 +53,7 @@ def protocol(
     states = StateChanges(state)
 
     for resp, resp_debug in code_generator:
-        if len(resp_debug.indices) != 0:
-            index = resp_debug.indices[-1]
-        elif len(debugs) != 0:
-            for debug in reversed(debugs):
-                if len(debug.indices) != 0:
-                    index = debug.indices[-1]
-            else:
-                index = 0
-        else:
-            index = 0
+        index = resp_debug.indices[-1]
         debugs.append(resp_debug)
         if resp.kind == "lost_signal":
             state = ProtocolState.Length
@@ -104,6 +95,7 @@ def protocol(
                 if len(chars) == LengthLen:
                     try:
                         data_length = int(chars, 16)
+                        logger.debug(f"Message with len {data_length}")
                     except ValueError:
                         logger.warning(
                             f"Received msg with invalid len field '{chars}' restarting"

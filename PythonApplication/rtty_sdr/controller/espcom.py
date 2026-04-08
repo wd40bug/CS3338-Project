@@ -33,7 +33,9 @@ class EspComms:
 
     def send_receive(self, msg: ToESP) -> EspComReturn:
         # Write msg to esp
-        self.__esp.write(self.__encoder.encode(msg))
+        json = self.__encoder.encode(msg)
+        self.__esp.write(json)
+        logger.trace(f"Wrote to esp: {json}")
         # Read reply from esp
         reply = self.__esp.readline()
         logger.trace(reply)
