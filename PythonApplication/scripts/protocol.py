@@ -8,7 +8,7 @@ from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.protocol_decode import protocol
-from rtty_sdr.dsp.poisonPill import CommandsQueueQueue, CommandsQueue
+from rtty_sdr.dsp.commands import CommandsQueueQueue, CommandsQueue
 from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import SystemOpts

@@ -17,8 +17,8 @@ def test_baudot_invalid_replacement():
     # Accessing the mangled class name for the test
 
     # '@' is invalid, should be replaced by Space (4)
-    result, shift = encode("A@B", opts)
-    assert result == [3, 4, 25]
+    result, shift = encode("5@B", opts)
+    assert result == [27, 16, 4, 31, 25]
     assert shift == Shift.LTRS
 
 

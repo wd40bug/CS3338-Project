@@ -4,7 +4,7 @@ from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.dsp.decode import DecodeState, decode_stream, Code
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import CommandsQueue, CommandsQueueQueue
+from rtty_sdr.dsp.commands import CommandsQueue, CommandsQueueQueue
 from rtty_sdr.dsp.sources import MockSignalSource
 from rtty_sdr.core.options import (
     Shift,

@@ -5,6 +5,8 @@ import multiprocessing
 
 
 class TopicsRegistry:
+    """Registry of all topics and corresponding types of payloads. Make sure this is initialized before any processes are created"""
+
     def __init__(self):
         self.__topics: dict[str, type[msgspec.Struct] | None] = {}
 

@@ -36,9 +36,7 @@ LTRS_Map: Final[dict[str, int]] = {
     "\r": 8,
 }
 
-LTRS_Map_rev: Final[dict[int, str]] = {
-        value: key for key, value in LTRS_Map.items()
-    }
+LTRS_Map_rev: Final[dict[int, str]] = {value: key for key, value in LTRS_Map.items()}
 
 
 # Figure shift mapping
@@ -73,33 +71,81 @@ FIGS_Map: Final[dict[str, int]] = {
     "\r": 8,
 }
 
-FIGS_Map_rev: Final[dict[int, str]] = {
-    value: key for key, value in FIGS_Map.items()
+FIGS_Map_rev: Final[dict[int, str]] = {value: key for key, value in FIGS_Map.items()}
+
+BOTH_Map: Final[dict[str, int]] = {
+    char: code for char, code in LTRS_Map.items() if char in FIGS_Map
 }
 
+
 @staticmethod
-def ValidateChar(char: str) -> bool:
-    return get_mapped(char) is not None
+def validate_char(char: str, case_sensitive: bool = False) -> bool:
+    """
+    Return if the char is a valid Baudot character
+    Args:
+        char (str): The character to validate
+        case_sensitive (bool): Whether or not to be case sensitive (default False)
+
+    Returns:
+        bool: If the character is valid Baudot
+
+    """
+    return get_mapped(char, case_sensitive) is not None
+
 
 @dataclass
 class MappedVal:
+    """Represents the code and shift of a Baudot character
+
+    Attributes:
+        code (int): The baudot-code (0-31)
+        shift (Shift): Either LTRS, FIGS, or None (if both)
+    """
+
     code: int
-    shift: Shift
+    shift: Shift | None
+
 
 @staticmethod
-def get_mapped(char: str) -> MappedVal | None:
-    up = char.upper()
-    if val := LTRS_Map.get(up):
+def get_mapped(char: str, case_sensitive: bool = False) -> MappedVal | None:
+    """
+    Get the mapping for the char
+    Args:
+        char:
+        case_sensitive:
+
+    Returns: A MappedVal or None if it isn't mappable
+
+    """
+    cased = char.upper() if not case_sensitive else char
+    if val := BOTH_Map.get(cased):
+        return MappedVal(val, None)
+    elif val := LTRS_Map.get(cased):
         return MappedVal(val, Shift.LTRS)
-    elif val := FIGS_Map.get(up):
+    elif val := FIGS_Map.get(cased):
         return MappedVal(val, Shift.FIGS)
     else:
         return None
 
+
 @staticmethod
 def encode(
-    letters: str, opts: BaudotOptions, initial_shift: Shift | None = None
+    msg: str, opts: BaudotOptions, initial_shift: Shift | None = None
 ) -> tuple[list[int], Shift]:
+    """Baudot Encoder
+
+    Args:
+        msg:
+        opts:
+        initial_shift: This will override the opts.initial_shift (intended for use saving state between calls)
+
+    Returns:
+        0: The codes
+        1: The new shift value
+
+    Raises:
+        ValueError: If characters aren't valid and opts.replace_invalid_with isn't specified to a valid character
+    """
     replacement: MappedVal | None = None
     if opts.replace_invalid_with is not None:
         replacement = get_mapped(opts.replace_invalid_with)
@@ -109,7 +155,7 @@ def encode(
             )
 
     mapped_values: list[MappedVal] = []
-    for c in letters:
+    for c in msg:
         maps_val = get_mapped(c)
         if maps_val is None:
             if replacement is None:
@@ -123,7 +169,8 @@ def encode(
     ret: list[int] = []
     shift = initial_shift if initial_shift is not None else opts.initial_shift
     for mapped in mapped_values:
-        if mapped.shift != shift:
+        # For None shift (either) just use previous shift
+        if mapped.shift is not None and mapped.shift != shift:
             ret.extend([mapped.shift, mapped.code])
             shift = mapped.shift
         else:
@@ -131,9 +178,23 @@ def encode(
     return ret, shift
 
 
+def decode(
+    codes: list[int] | int, opts: BaudotOptions, shift: Shift | None = None
+) -> tuple[str, Shift]:
+    """Baudot Decoder
 
-def decode(codes: list[int] | int, opts: BaudotOptions, shift: Shift | None = None) -> tuple[str, Shift]:
+    Args:
+        codes: the code/codes to decode
+        opts:
+        shift: overrides opts.initial_shift, intended for use saving state between calls
 
+    Returns:
+        0: decoded msg
+        1: the new state
+
+    Raises:
+        ValueError: If a code is invalid (above 31)
+    """
     if not isinstance(codes, list):
         codes = [codes]
 

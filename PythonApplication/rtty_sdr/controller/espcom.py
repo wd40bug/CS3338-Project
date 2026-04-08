@@ -1,10 +1,7 @@
-import queue
 import msgspec
 import serial
 import time
-import json
 from typing import Annotated, Literal
-from queue import Queue
 
 from loguru import logger
 from rtty_sdr.core.options import RTTYOpts
@@ -25,7 +22,9 @@ class ToESP(msgspec.Struct, frozen=True):
     options: RTTYOpts
 
 class EspComms:
+    """Class wrapping a serial.Serial port and our communication strategy"""
     def __init__(self) -> None:
+        #TODO: Option for port
         self.__encoder = msgspec.json.Encoder()
         self.__esp: serial.Serial = serial.Serial(port="/dev/ttyUSB0", baudrate=115200)
         time.sleep(0.05)

@@ -6,7 +6,7 @@ import sounddevice as sd
 import queue
 
 from rtty_sdr.core.options import DecodeCommon
-from rtty_sdr.dsp.poisonPill import CommandsQueueQueue, FullStopCommand
+from rtty_sdr.dsp.commands import CommandsQueueQueue, FullStopCommand
 
 class AudioSource(Protocol):
     def read_chunk(self) -> npt.NDArray[np.float64] | None: ...

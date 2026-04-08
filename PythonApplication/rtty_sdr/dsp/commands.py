@@ -1,8 +1,5 @@
-from typing import Annotated, Iterator, Protocol, Literal
+from typing import Annotated, Protocol, Literal
 import queue
-import msgspec
-import numpy as np
-import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict, Field
 
 from rtty_sdr.core.options import SystemOpts

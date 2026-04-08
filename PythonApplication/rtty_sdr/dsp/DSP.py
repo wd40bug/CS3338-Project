@@ -8,7 +8,7 @@ from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
 from rtty_sdr.debug.internal_signal import InternalSignalMsg
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
-from rtty_sdr.dsp.poisonPill import (
+from rtty_sdr.dsp.commands import (
     CommandsQueueQueue,
     FullStopCommand,
     Commands,

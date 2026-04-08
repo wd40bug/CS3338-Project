@@ -17,6 +17,7 @@ from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import SendMessage
 
 class EspComThread(threading.Thread):
+    """Thread to communicate with the ESP and publish controller.sent messages"""
     def __init__(
         self,
         msgqueue: queue.Queue[ToESP | Literal["done"]],
@@ -47,6 +48,7 @@ class EspComThread(threading.Thread):
 
 
 class ControllerModule(threading.Thread):
+    """Thread to recieve messages from the messagequeue to manage the EspComThread"""
     def __init__(self, initial_settings: SystemOpts, registry: TopicsRegistry):
         super().__init__()
         registry.register("controller.sent", None)

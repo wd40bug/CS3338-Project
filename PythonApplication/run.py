@@ -1,11 +1,7 @@
 import multiprocessing as mp
-import threading
-import sys
 import time
-from typing import Final, List, Any, Deque
+from typing import Final, Deque
 import collections
-import matplotlib.pyplot as plt
-import code
 
 from loguru import logger
 import loguru
@@ -19,6 +15,7 @@ from rtty_sdr.ui.TUI import RttyTerminal
 from rtty_sdr.debug.debug_socket import DebugSocket
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
+
 logger.remove(0)
 logger.add("log.log", level="TRACE", mode="w", enqueue=True)
 early_logs: Final[Deque[loguru.Message]] = collections.deque(maxlen=500)

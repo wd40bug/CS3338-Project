@@ -10,6 +10,7 @@ DEBUG_SOCKET: Final[str] = "ipc:///tmp/app_backend_debug.ipc"
 
 
 class BrokerModule(threading.Thread):
+    """Thread to fascilitate PubSub"""
     def __init__(self) -> None:
         super().__init__()
         # Declare private variables, but do NOT initialize ZeroMQ objects here.
@@ -54,26 +55,20 @@ class BrokerModule(threading.Thread):
         except Exception as e:
             logger.exception(f"Fatal error: {e}")
         finally:
-            self.__cleanup()
+            if self.__frontend is not None:
+                self.__frontend.close(linger=0)
+
+            if self.__backend is not None:
+                self.__backend.close(linger=0)
+
+            if self.__debug is not None:
+                self.__debug.close(linger=0)
+
+            logger.info("Offline.")
 
     def stop(self) -> None:
         """
-        Thread-safe method to stop the proxy from the main thread.
-        Terminating the context raises zmq.ContextTerminated inside run().
+        Thread-safe method to stop the proxy from the main thread
         """
         if self.__context is not None:
             self.__context.term()
-
-    def __cleanup(self) -> None:
-        """Ensures all sockets are cleanly destroyed."""
-        # Linger=0 drops pending messages immediately upon close to prevent hanging
-        if self.__frontend is not None:
-            self.__frontend.close(linger=0)
-
-        if self.__backend is not None:
-            self.__backend.close(linger=0)
-
-        if self.__debug is not None:
-            self.__debug.close(linger=0)
-
-        logger.info("Offline.")

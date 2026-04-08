@@ -15,6 +15,15 @@ def calculate_checksum(codes: list[int]) -> int:
 
 
 class ProtocolMessage(msgspec.Struct, frozen=True):
+    """Representation of a message
+
+    Attributes:
+        msg: actual message
+        callsign: 
+        encoding: 
+        codes: baudot codes as integers
+        checksum: (may or may not be valid)
+    """
     msg: str
     callsign: str
     encoding: str
@@ -40,6 +49,12 @@ class SendMessage(ProtocolMessage, frozen=True):
         )
 
 class RecvMessage(ProtocolMessage, frozen=True):
+    """A Message received by the protocol
+
+    Attributes:
+        calculatedChecksum: 
+        validChecksum: whether the calculatedChecksum matches the message checksum
+    """
     calculatedChecksum: int
     validChecksum: bool
 

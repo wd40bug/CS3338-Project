@@ -9,7 +9,7 @@ import msgspec
 
 from rtty_sdr.core.options import BaudotOptions, Shift
 from rtty_sdr.debug.state_changes import StateChanges
-from rtty_sdr.dsp.poisonPill import Command
+from rtty_sdr.dsp.commands import Command
 from rtty_sdr.dsp.decode import DecodeYield, DecodeDebug
 
 LengthLen: Final[int] = 2

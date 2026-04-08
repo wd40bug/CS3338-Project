@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 from rtty_sdr.debug.state_changes import StateChanges
-from rtty_sdr.dsp.poisonPill import Command, NoCommands, Commands
+from rtty_sdr.dsp.commands import Command, Commands
 from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.engines import DemodulatorEngine
 from rtty_sdr.core.options import DecodeStreamOpts
@@ -73,7 +73,7 @@ def decode_stream(
                 raise ValueError(f"Unknown command: {cmd[0]}")
 
         if raw_audio is None:
-            # time.sleep(opts.none_friction)
+            time.sleep(opts.none_friction)
             continue
 
         filtered_audio, squelch_arr, _ = squelch.process(raw_audio)

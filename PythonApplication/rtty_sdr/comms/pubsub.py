@@ -10,15 +10,7 @@ import math
 
 
 class PubSub:
-    # Topics
-    # ui.settings
-    # ui.send
-    # ui.send_internal
-    # ui.shutdown
-    # dsp.received
-    # dsp.receiving
-    # error_corr.corrected
-    # controller.sent
+    """Wrapper over a publisher and subscriber socket. DO NOT USE ACROSS THREADS!!!"""
 
     @staticmethod
     def decode_hook(type: Any, obj: Any) -> Any:
@@ -71,6 +63,12 @@ class PubSub:
         self.__registry = registry
 
     def publish_message(self, topic: str, payload: msgspec.Struct | None):
+        """Publish a message with the given topic and payload
+
+        Args:
+            topic:
+            payload:
+        """
         self.__registry.validate(topic, payload)
         if payload is not None:
             packed = self.__encoder.encode(payload)
@@ -81,6 +79,7 @@ class PubSub:
     def recv_message_timeout(
         self, timeout_ms: int | None = None
     ) -> Optional[tuple[str, Optional[msgspec.Struct]]]:
+        """Same as recv_message, but with a timeout. If the timeout passes, None is returned"""
         poller = zmq.Poller()
         poller.register(self.__sub_socket)
         if poller.poll(timeout=timeout_ms):
@@ -101,6 +100,12 @@ class PubSub:
         return topic, payload
 
     def recv_message(self) -> tuple[str, Optional[msgspec.Struct]]:
+        """Receive a message from the pubsub
+
+        Returns:
+            0: the topic of the message
+            1: the payload
+        """
         recv = self.recv_message_timeout()
         assert recv is not None
         return recv
