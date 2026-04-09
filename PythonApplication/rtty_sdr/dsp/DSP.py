@@ -1,11 +1,15 @@
 import multiprocessing
 import queue
-import threading
 
 from loguru import logger
-from rtty_sdr.comms.topics import TopicsRegistry
+from rtty_sdr.comms.messages import (
+    DebugMessage,
+    ReceivedMessage,
+    SendInternal,
+    Settings,
+    Shutdown,
+)
 from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
-from rtty_sdr.debug.internal_signal import InternalSignalMsg
 from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.commands import (
@@ -27,25 +31,17 @@ from rtty_sdr.dsp.sources import MicrophoneSource, MockSignalSource
 import numpy as np
 import numpy.typing as npt
 
-class RunDsp(threading.Thread):
-    def __init__(
-        self,
-        initial_settings: SystemOpts,
-        commands: Commands,
-        static_data_queue: queue.Queue[npt.NDArray[np.float64]],
-        registry: TopicsRegistry
-    ):
+
+class DspModule(multiprocessing.Process):
+    def __init__(self, default_settings: SystemOpts) -> None:
         super().__init__()
-        self.__commands = commands
-        self.__static_data_queue = static_data_queue
-        self.__settings = initial_settings
-        self.__registry = registry
+        self.__default_settings = default_settings
 
     @staticmethod
-    def create_pipeline(
+    def __create_pipeline(
         settings: SystemOpts,
-        commands: Commands,
-        static_data_queue: queue.Queue[npt.NDArray[np.float64]]
+        commands_queue: CommandsQueueQueue,
+        static_data_queue: queue.Queue[npt.NDArray[np.float64]],
     ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
         source = (
             MicrophoneSource(opts=settings.decode)
@@ -60,73 +56,66 @@ class RunDsp(threading.Thread):
             if settings.engine == "goertzel"
             else EnvelopeEngine(settings.envelope)
         )
+        commands = CommandsQueue(commands_queue)
         decode = decode_stream(source, squelch, engine, settings.stream, commands)
         return protocol(decode, settings.baudot)
 
     @catch_and_broadcast
     def run(self) -> None:
-        pubsub = PubSub([], self.__registry)
-        pipeline = self.create_pipeline(
-            self.__settings, self.__commands, self.__static_data_queue
+        pubsub = PubSub(module_name="DSP")
+
+        command_queue: CommandsQueueQueue = queue.Queue()
+        static_data_queue: queue.Queue[npt.NDArray[np.float64]] = queue.Queue()
+
+        def on_send_internal(msg: SendInternal):
+            logger.trace(f"signal of len {len(msg.signal)} received")
+            static_data_queue.put(msg.signal)
+
+        def on_shutdown(_: Shutdown):
+            command_queue.put(FullStopCommand())
+            logger.info("Ending DSP process")
+            return "stop"
+
+        def on_settings_change(msg: Settings):
+            command_queue.put(RestartCommand(new_settings=msg.settings))
+
+        pubsub.subscribe(SendInternal, on_send_internal)
+        pubsub.subscribe(Shutdown, on_shutdown)
+        pubsub.subscribe(Settings, on_settings_change)
+
+        # Spin up callback thread
+        pubsub.run_receive()
+
+        # Create pipeline
+        pipeline = self.__create_pipeline(
+            self.__default_settings, command_queue, static_data_queue
         )
+
         while True:
             item, debug = next(pipeline)
             if isinstance(item, RecvMessage):
-                pubsub.publish_message("dsp.received", item)
-            pubsub.publish_message('dsp.debug', debug)
-            logger.trace(f"Got a signal of len {len(debug.decode.envelope)}")
-            if isinstance(item, StoppedMsg):
+                pubsub.publish(ReceivedMessage(item))
+                pubsub.publish(DebugMessage(debug, is_done=False))
+                logger.trace(
+                    f"Received msg {item.msg} with signal len {len(debug.decode.signal)}"
+                )
+            elif isinstance(item, StoppedMsg):
+                logger.trace(
+                    f"Received command: {item.cmd.command} with signal len {len(debug.decode.signal)}"
+                )
                 match item.cmd.command:
                     case "restart":
                         assert isinstance(item.cmd, RestartCommand)
                         self.__settings = item.cmd.new_settings
-                        pipeline = self.create_pipeline(
-                            self.__settings, self.__commands, self.__static_data_queue
+                        pipeline = self.__create_pipeline(
+                            self.__settings,
+                            command_queue,
+                            static_data_queue,
                         )
+                        pubsub.publish(DebugMessage(debug, is_done=False))
                     case "stop":
-                        pubsub.publish_message('dsp.done', None)
+                        pubsub.publish(DebugMessage(debug, is_done=True))
                         logger.trace("Dsp Runner ending")
                         return
                     case _:
                         assert_never(item.cmd.command)
-
-
-class DspModule(multiprocessing.Process):
-    def __init__(self, default_settings: SystemOpts, registry: TopicsRegistry) -> None:
-        super().__init__()
-        self.__default_settings = default_settings
-        registry.register("dsp.received", RecvMessage)
-        registry.register("dsp.receiving", None)
-        registry.register("dsp.debug", ProtocolDebug)
-        registry.register("dsp.done", None)
-        self.__registry = registry
-
-    @catch_and_broadcast
-    def run(self) -> None:
-        logger.info("Running DSP Process")
-        pubsub = PubSub(["ui.send_internal", "system.shutdown", "ui.settings"], self.__registry)
-
-        # Pipeline Communication
-        command_queue: CommandsQueueQueue = queue.Queue()
-        commands = CommandsQueue(command_queue)
-        static_data_queue: queue.Queue[npt.NDArray[np.float64]] = queue.Queue()
-
-        pipeline_thread = RunDsp(self.__default_settings, commands, static_data_queue, self.__registry)
-        pipeline_thread.start()
-
-        while True:
-            topic, payload = pubsub.recv_message()
-            logger.trace(f"Received {topic} msg")
-            if topic == "ui.settings":
-                assert isinstance(payload, SystemOpts)
-                command_queue.put(RestartCommand(new_settings=payload))
-            elif topic == "system.shutdown":
-                assert payload is None
-                command_queue.put(FullStopCommand())
-                pipeline_thread.join()
-                logger.info("Ending DSP process")
-                return
-            elif topic == "ui.send_internal":
-                assert isinstance(payload, InternalSignalMsg)
-                logger.trace(f"signal of len {len(payload.signal)} received")
-                static_data_queue.put(payload.signal)

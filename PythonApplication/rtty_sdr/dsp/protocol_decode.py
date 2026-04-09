@@ -1,3 +1,4 @@
+from numpy._core import indices
 from rtty_sdr.core.protocol import RecvMessage
 
 from typing import Final, Iterator, Self
@@ -53,7 +54,18 @@ def protocol(
     states = StateChanges(state)
 
     for resp, resp_debug in code_generator:
-        index = resp_debug.indices[-1]
+        assert resp.kind != "code" or len(resp_debug.indices) != 0 
+        if len(resp_debug.indices) != 0:
+            index = resp_debug.indices[-1]
+        elif len(debugs) != 0:
+            for debug in reversed(debugs):
+                if len(debug.indices) != 1:
+                    index = debug.indices[-1]
+                    break
+            else:
+                index = 0
+        else:
+            index = 0
         debugs.append(resp_debug)
         if resp.kind == "lost_signal":
             state = ProtocolState.Length

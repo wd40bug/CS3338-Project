@@ -1,18 +1,12 @@
 import time
 from rtty_sdr.comms.broker import BrokerModule
+from rtty_sdr.comms.messages import DebugMessage, ReceivedMessage, SendInternal, Shutdown
 from rtty_sdr.comms.pubsub import PubSub
-from rtty_sdr.comms.topics import TopicsRegistry
-from rtty_sdr.core.baudot import encode
 from rtty_sdr.core.options import SystemOpts
-from rtty_sdr.core.protocol import RecvMessage, SendMessage
 from rtty_sdr.dsp.protocol_decode import ProtocolDebug
 from rtty_sdr.debug.debug_socket import DebugSocket
 from rtty_sdr.dsp.DSP import DspModule
-from rtty_sdr.debug.internal_signal import internal_signal, InternalSignalMsg
 import matplotlib.pyplot as plt
-
-import numpy as np
-import numpy.typing as npt
 
 from rtty_sdr.debug.state_changes import graph_states
 from rtty_sdr.debug.squelch import plot_shaded_squelch
@@ -27,59 +21,55 @@ logger.add(sys.stderr, level="TRACE")
 
 msgs = ["HELLO", "WORLD", "!"]
 settings = SystemOpts.default(source="internal", engine='goertzel')
-registry = TopicsRegistry()
-registry.register("ui.send_internal", InternalSignalMsg)
-registry.register("system.shutdown", None)
-registry.register("ui.settings", SystemOpts)
 
 broker = BrokerModule()
-dsp = DspModule(settings, registry)
-debug_socket = DebugSocket(registry)
+dsp = DspModule(settings)
+debug_socket = DebugSocket()
 
 broker.start()
 debug_socket.start()
 threading.Thread(target=dsp.run).start()
 
-pubsub = PubSub(["dsp.received", "dsp.debug", "dsp.done"], registry)
+pubsub = PubSub()
 
 time.sleep(1)
-total_signal: list[npt.NDArray[np.float64]] = []
 for msg in msgs:
-    send_message = SendMessage.create(msg, "KJ5OEH", settings.baudot)
-    signal, _, _ = internal_signal(send_message.codes, settings.signal, 0.2)
-    total_signal.append(signal)
-    logger.trace(f"Signal of len {len(signal)} generated")
-    pubsub.publish_message("ui.send_internal", InternalSignalMsg(signal))
+    logger.info(f"Sending message: {msg}")
+    pubsub.publish(SendInternal.create(msg, settings))
+
 logger.info("Sent messages")
-signal = np.concatenate(total_signal)
 
 debug: list[ProtocolDebug] = []
 recv_msgs: list[str] = []
 num_messages = 0
-while True:
-    recv = pubsub.recv_message_timeout(10_000)
-    if recv is None:
-        logger.error(f"Timed out waiting for message: {num_messages + 1}")
-        pubsub.publish_message("system.shutdown", None)
-        continue
-    topic, msg = recv
-    logger.info(f"Received {topic} msg")
-    match topic:
-        case "dsp.received":
-            assert isinstance(msg, RecvMessage)
-            logger.info(f"Msg '{msg.msg}'")
-            recv_msgs.append(msg.msg)
-            num_messages += 1
-            if num_messages == len(msgs):
-                pubsub.publish_message("system.shutdown", None)
-                logger.info(f"Shutting down after receiving all {len(msgs)} messages")
-        case "dsp.debug":
-            assert isinstance(msg, ProtocolDebug)
-            debug.append(msg)
-        case "dsp.done":
-            break;
-        case _:
-            raise RuntimeError(f"Received unsubscribed topic: {topic}")
+
+#NOTE: Publishing from inside callbacks is only safe if thread=False
+def on_timeout():
+    logger.error(f"Timed out waiting for message: {num_messages + 1}")
+    pubsub.publish(Shutdown())
+    return "stop"
+
+def on_receive(msg: ReceivedMessage):
+    # msg.msg.msg LMAO
+    global num_messages
+    logger.info(f"Msg '{msg.msg.msg}'")
+    recv_msgs.append(msg.msg.msg)
+    num_messages += 1
+    if num_messages == len(msgs):
+        pubsub.publish(Shutdown())
+        logger.info(f"Shutting down after receiving all {len(msgs)} messages")
+
+def on_debug(msg: DebugMessage):
+    debug.append(msg.debug)
+    if msg.is_done:
+        pubsub.publish(Shutdown())
+        return "stop"
+
+pubsub.set_timeout(1000, on_timeout)
+pubsub.subscribe(ReceivedMessage, on_receive)
+pubsub.subscribe(DebugMessage, on_debug)
+
+pubsub.run_receive(thread=False)
 
 summed_debug = ProtocolDebug.combine(debug)
 
@@ -103,4 +93,5 @@ plt.show()
 
 logger.info("Shutting down")
 broker.stop()
-sys.exit(0)
+
+# breakpoint()

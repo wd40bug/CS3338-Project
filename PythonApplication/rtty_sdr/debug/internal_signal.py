@@ -107,6 +107,3 @@ def internal_signal(
             data_indices + silence_len,
         ),
     )
-
-class InternalSignalMsg(msgspec.Struct, frozen=True):
-    signal: npt.NDArray[np.float64]

@@ -1,6 +1,7 @@
 from enum import IntEnum, auto
 from typing import Annotated, Literal, Iterator, Iterable
 
+from loguru import logger
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
