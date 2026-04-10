@@ -1,11 +1,14 @@
 from enum import IntEnum, auto
-from typing import Literal, Iterator, Iterable
+from typing import Annotated, Literal, Iterator, Iterable
 
+from loguru import logger
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
+
+from pydantic import BaseModel, Field
 from rtty_sdr.debug.state_changes import StateChanges
-from rtty_sdr.dsp.poisonPill import NonePoisonPill, PoisonPill
+from rtty_sdr.dsp.commands import Command, Commands
 from rtty_sdr.dsp.sources import AudioSource
 from rtty_sdr.dsp.engines import DemodulatorEngine
 from rtty_sdr.core.options import DecodeStreamOpts
@@ -14,7 +17,25 @@ from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.debug_types import DebugCombineable
 import time
 
-type DecodeYield = tuple[Literal["reset"] | Literal["end"] | int, DecodeDebug]
+
+class Code(BaseModel):
+    code: int
+    kind: Literal["code"] = "code"
+
+
+class Commanded(BaseModel):
+    command: Command
+    kind: Literal["command"] = "command"
+
+
+class LostSignal(BaseModel):
+    kind: Literal["lost_signal"] = "lost_signal"
+
+
+type DecodeYieldType = Annotated[
+    Code | LostSignal | Commanded, Field(discriminator="kind")
+]
+type DecodeYield = tuple[DecodeYieldType, DecodeDebug]
 
 
 class DecodeState(IntEnum):
@@ -30,7 +51,7 @@ def decode_stream(
     squelch: Squelch,
     engine: DemodulatorEngine,
     opts: DecodeStreamOpts,
-    pill: PoisonPill
+    pill: Commands,
 ) -> Iterator[DecodeYield]:
     signal_opts = opts.decode.signal
     countdown: None | int = None
@@ -44,10 +65,13 @@ def decode_stream(
 
     while True:
         raw_audio = source.read_chunk()
-        pill_val = pill.check()
-        if pill_val == "stop":
-            yield ("end", builder.finish())
-            return
+        cmd = pill.check()
+        if cmd is not None:
+            if cmd.command == "stop" or cmd.command == "restart":
+                yield (Commanded(command=cmd), builder.finish())
+                return
+            else:
+                raise ValueError(f"Unknown command: {cmd[0]}")
 
         if raw_audio is None:
             time.sleep(opts.none_friction)
@@ -71,7 +95,7 @@ def decode_stream(
                 if squelch_count > opts.squelch_grace_period:
                     if state != DecodeState.NO_SIGNAL and state != DecodeState.IDLE:
                         # Lost signal, reset protocol
-                        yield ("reset", builder.build(i, DecodeState.NO_SIGNAL))
+                        yield (LostSignal(), builder.build(i, DecodeState.NO_SIGNAL))
                     state = DecodeState.NO_SIGNAL
                 continue
             else:
@@ -108,9 +132,8 @@ def decode_stream(
                     code = sum(
                         bit * (2**j) for j, bit in enumerate(reversed(current_word))
                     )
-
                     state = DecodeState.START
-                    yield (code, builder.build(i, state))
+                    yield (Code(code=code), builder.build(i, state))
                     countdown = None
 
         # Loop finished, save remaining unbuilt data and advance the absolute clock

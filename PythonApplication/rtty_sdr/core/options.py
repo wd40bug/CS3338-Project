@@ -1,18 +1,19 @@
 # from dataclasses import dataclass, field
-from typing import Final, Literal
-from pydantic.dataclasses import dataclass
-from pydantic.fields import Field
+from enum import IntEnum
+from typing import Final, Literal, ClassVar, Self
 
-@dataclass
-class RTTYOpts():
-    stop_bits: float = 1.5
-    baud: float = 45.45
-    mark: int = 2125
-    shift: int = 170
-    pre_msg_stops: int = 0
-    post_msg_stops: int = 0
+from msgspec import Struct
 
-    data_bits: Final[int] = Field(init=False, default=5)
+
+class RTTYOpts(Struct, frozen=True):
+    stop_bits: float
+    baud: float
+    mark: int
+    shift: int
+    pre_msg_stops: int
+    post_msg_stops: int
+
+    data_bits: ClassVar[Final[int]] = 5
 
     @property
     def space(self):
@@ -29,8 +30,34 @@ class RTTYOpts():
     def __str__(self) -> str:
         return f"Mark: {self.mark}, Space: {self.space}, Baud: {self.baud}"
 
-@dataclass
-class GoertzelOpts():
+
+class SignalOpts(Struct, frozen=True):
+    Fs: int
+    rtty: RTTYOpts
+
+    @property
+    def nsamp(self):
+        return round(self.Fs / self.rtty.baud)
+
+
+class DecodeCommon(Struct, frozen=True):
+    oversampling: int
+    signal: SignalOpts
+
+    @property
+    def chunk_size(self) -> int:
+        return self.signal.nsamp // self.oversampling
+
+class Shift(IntEnum):
+    LTRS = 31
+    FIGS = 27
+
+class BaudotOptions(Struct, frozen=True):
+    initial_shift: Shift
+    replace_invalid_with: str | None = None
+
+
+class GoertzelOpts(Struct, frozen=True):
     overlap_ratio: float
     dft_len: int
     decode: DecodeCommon
@@ -39,31 +66,23 @@ class GoertzelOpts():
     def overlap_size(self) -> int:
         return round(self.decode.chunk_size * self.overlap_ratio)
 
-@dataclass
-class EnvelopeOpts():
+
+class EnvelopeOpts(Struct, frozen=True):
+    order: int
     envelopes_order: int
     decode: DecodeCommon
 
-@dataclass 
-class SquelchOpts():
+
+class SquelchOpts(Struct, frozen=True):
     lower_thresh: float
     upper_thresh: float
+    order: int
+    envelopes_order: int
+    bw_safety_margin: float
     decode: DecodeCommon
-    order: int = 4
-    envelopes_order: int = 4
-    bw_safety_margin: float = 2
 
-@dataclass
-class DecodeCommon():
-    oversampling: int
-    signal: SignalOpts
 
-    @property
-    def chunk_size(self) -> int:
-        return self.signal.nsamp // self.oversampling
-
-@dataclass
-class DecodeStreamOpts():
+class DecodeStreamOpts(Struct, frozen=True):
     squelch_grace_percent: float
     idle_bits: float
     none_friction: float
@@ -77,17 +96,8 @@ class DecodeStreamOpts():
     def idle_samples(self) -> int:
         return round(self.idle_bits * self.decode.chunk_size)
 
-@dataclass
-class SignalOpts():
-    Fs: int
-    rtty: RTTYOpts
 
-    @property
-    def nsamp(self):
-        return round(self.Fs / self.rtty.baud)
-
-@dataclass
-class SystemOpts():
+class SystemOpts(Struct, frozen=True):
     # Stem configs
     rtty: RTTYOpts
     signal: SignalOpts
@@ -98,25 +108,86 @@ class SystemOpts():
     goertzel: GoertzelOpts
     squelch: SquelchOpts
     stream: DecodeStreamOpts
+    baudot: BaudotOptions
 
     # System Options
     engine: Literal["goertzel", "envelope"]
     source: Literal["microphone", "internal"]
+    callsign: str
 
     @classmethod
-    def default(cls) -> SystemOpts:
-        rtty = RTTYOpts()
-        signal = SignalOpts(Fs = 8000, rtty=rtty)
-        decode = DecodeCommon(oversampling=5, signal=signal)
+    def default(
+        cls,
+        stop_bits: float = 1.5,
+        baud: float = 45.45,
+        mark: int = 2125,
+        shift: int = 170,
+        pre_msg_stops: int = 1,
+        post_msg_stops: int = 1,
+        Fs: int = 8000,
+        oversampling: int = 5,
+        envelope_generator_order: int = 4,
+        envelope_generator_envelopes_order: int = 4,
+        overlap_ratio: float = 0.5,
+        dft_len: int = 256,
+        lower_thresh: float = 0.2,
+        upper_thresh: float = 2,
+        squelch_order: int = 4,
+        squelch_envelopes_order: int = 4,
+        bw_safety_margin: float = 2,
+        squelch_grace_percent: float = 0.25,
+        idle_bits: float = 2,
+        none_friction: float = 0.1,
+        initial_shift: Shift = Shift.FIGS,
+        replace_invalid_with: str | None = None,
+        engine: Literal["goertzel", "envelope"] = "goertzel",
+        source: Literal["microphone", "internal"] = "microphone",
+        callsign: str = "KJ5OEH",
+    ) -> Self:
+        rtty = RTTYOpts(
+            stop_bits=stop_bits,
+            baud=baud,
+            mark=mark,
+            shift=shift,
+            pre_msg_stops=pre_msg_stops,
+            post_msg_stops=post_msg_stops,
+        )
+        signal = SignalOpts(Fs=Fs, rtty=rtty)
+        decode = DecodeCommon(
+            oversampling=oversampling,
+            signal=signal,
+        )
 
         return cls(
             rtty=rtty,
             signal=signal,
             decode=decode,
-            envelope=EnvelopeOpts(envelopes_order=4, decode=decode),
-            goertzel=GoertzelOpts(overlap_ratio=0.5, dft_len=256, decode=decode),
-            squelch=SquelchOpts(lower_thresh=0.2, upper_thresh=2, decode=decode),
-            stream=DecodeStreamOpts(squelch_grace_percent=0.25, idle_bits=2, decode=decode, none_friction=0.1),
-            engine="goertzel",
-            source="microphone"
+            envelope=EnvelopeOpts(
+                envelopes_order=envelope_generator_envelopes_order,
+                decode=decode,
+                order=envelope_generator_order,
+            ),
+            goertzel=GoertzelOpts(
+                overlap_ratio=overlap_ratio, dft_len=dft_len, decode=decode
+            ),
+            squelch=SquelchOpts(
+                lower_thresh=lower_thresh,
+                upper_thresh=upper_thresh,
+                decode=decode,
+                order=squelch_order,
+                envelopes_order=squelch_envelopes_order,
+                bw_safety_margin=bw_safety_margin,
+            ),
+            stream=DecodeStreamOpts(
+                squelch_grace_percent=squelch_grace_percent,
+                idle_bits=idle_bits,
+                decode=decode,
+                none_friction=none_friction,
+            ),
+            baudot=BaudotOptions(
+                initial_shift=initial_shift, replace_invalid_with=replace_invalid_with
+            ),
+            engine=engine,
+            source=source,
+            callsign=callsign,
         )

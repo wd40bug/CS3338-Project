@@ -1,26 +1,24 @@
-from queue import Queue
-from rtty_sdr.core.options import RTTYOpts
+from loguru import logger
+from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import SendMessage
-from rtty_sdr.core.baudot import BaudotEncoder
-from rtty_sdr.controller.controller import ToESP, send_receive
+from rtty_sdr.controller.espcom import EspComms
+from rtty_sdr.controller.espcom import ToESP
+import time
 
+time.sleep(10)
 
-encoder = BaudotEncoder()
+opts = SystemOpts.default(pre_msg_stops=20)
 
-msg1 = SendMessage("hi", "KJ5OEH", encoder)
-msg2 = SendMessage("hi again", "KJ5OEH", encoder)
+msg1 = SendMessage.create("hi", "KJ5OEH", opts.baudot)
+msg2 = SendMessage.create("hi again", "KJ5OEH", opts.baudot)
 
-opts = RTTYOpts(baud=45.45, mark=2125, shift=170, pre_msg_stops=40)
+logger.info(f"First message: {msg1.encoding}")
+logger.info(f"Second message: {msg2.encoding}")
 
-toesp1 = ToESP(opts, msg1.codes)
-toesp2 = ToESP(opts, msg2.codes)
+toesp1 = ToESP(msg1.codes, opts.rtty)
+toesp2 = ToESP(msg2.codes, opts.rtty)
 
-msgqueue = Queue()
+comms = EspComms()
 
-msgqueue.put(toesp1)
-msgqueue.put(toesp2)
-msgqueue.put("done")
-
-send_receive(msgqueue)
-
-
+comms.send_receive(toesp1)
+comms.send_receive(toesp2)

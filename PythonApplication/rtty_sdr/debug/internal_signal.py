@@ -1,3 +1,4 @@
+import msgspec
 import scipy.signal as sg
 import numpy as np
 import numpy.typing as npt

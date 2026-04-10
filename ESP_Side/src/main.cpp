@@ -61,60 +61,67 @@ class Transmitter{
 };
 Transmitter trans;
 
-void deserializeJSON(String c){
-  
-  JsonDocument doc;
-  deserializeJson(doc, c);
+String c;
 
-  DeserializationError err = deserializeJson(doc, c);
+void setup() {
+  Serial.begin(115200);
+  Serial.setTimeout(50);
+  lcd.begin(16,2); 
+  trans.begin();
+}
 
-  if (err) {
-    lcd.print("JSON ERR");
-    return;
+void loop() {
+  // Check if there is data waiting in the serial buffer
+  if (Serial.available()) {
+    
+    lcd.clear();
+    lcd.print("Reading Stream");
+
+    JsonDocument doc;
+    
+    // Pass the Serial stream directly to the deserializer!
+    // It will block here (up to the Serial timeout) until it finds a complete JSON object.
+    DeserializationError err = deserializeJson(doc, Serial);
+
+    if (err) {
+      lcd.clear();
+      lcd.print("JSON ERR");
+      // Read out and discard any garbage left in the buffer to prevent a loop lock
+      while(Serial.available()) Serial.read(); 
+      return;
+    }
+
+    // Pass the populated document directly to your handling logic
+    handlePayload(doc); 
+    
+    Serial.println("Success: Stream Parsed");
   }
-  
-  float stopbits = doc["stop_bits"];
-  double baud = doc["baud"];
-  long mark = doc["mark"];
-  long shift = doc["shift"];
-  long prestops = doc["pre_msg_stops"];
+}
+
+// Adjusted handling logic that takes the parsed document directly
+void handlePayload(JsonDocument& doc) {
+  JsonObject options = doc["options"];
+  float stopbits = options["stop_bits"];
+  double baud = options["baud"];
+  long mark = options["mark"];
+  long shift = options["shift"];
+  long prestops = options["pre_msg_stops"];
 
   trans.Mark = mark;
   trans.Shift = shift;
   trans.Space = trans.Mark + trans.Shift;
-  trans.Baud = baud;
+  
+  trans.Baud = (baud > 0) ? baud : 45.45; 
   trans.BitDuration = round(1000.0 / trans.Baud);
+  
   trans.StopDuration = stopbits;
   trans.PreStops = prestops;
   
   JsonArray msgarr = doc["message"];
 
   trans.start();
-  
   for(int i = 0; i < msgarr.size(); i++){
-    //lcd.print(msgarr[i].as<int>());
     trans.send_char(msgarr[i].as<int>());
   }
   trans.stop();
-  
-}
-
-String c;
-
-void setup() {
-  Serial.begin(115200);
-  Serial.setTimeout(1000);
-  lcd.begin(16,2); 
-  trans.begin();
-}
-
-void loop() {
-  while(!Serial.available());
-  c = Serial.readString();
-  lcd.print(c);
-  deserializeJSON(c);
-  Serial.println("Received: " + c);
-  Serial.flush();
-  
-  
 }

@@ -23,8 +23,8 @@ class EnvelopeEngine(DemodulatorEngine):
     def __init__(self, opts: EnvelopeOpts):
         BW_one = 1.2 * 45.45
         signal_opts = opts.decode.signal
-        self.__mark = PeakFilter(signal_opts.Fs, signal_opts.rtty.mark, BW_one, 4)
-        self.__space = PeakFilter(signal_opts.Fs, signal_opts.rtty.space, BW_one, 4)
+        self.__mark = PeakFilter(signal_opts.Fs, signal_opts.rtty.mark, BW_one, opts.order)
+        self.__space = PeakFilter(signal_opts.Fs, signal_opts.rtty.space, BW_one, opts.order)
         self.__mark_env = Envelope(signal_opts, opts.envelopes_order)
         self.__space_env = Envelope(signal_opts, opts.envelopes_order)
         self.delay: Final[float] = self.__mark.delay + self.__mark_env.delay
