@@ -1,3 +1,4 @@
+import sys
 import threading
 import queue
 
@@ -16,8 +17,7 @@ from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
 from rtty_sdr.core.options import SystemOpts
 
 class ControllerModule(threading.Thread):
-    """Thread to recieve messages from the messagequeue to manage the EspComThread"""
-
+    """Thread to communicate with the ESP"""
     def __init__(self, initial_settings: SystemOpts):
         super().__init__()
         self.__settings = initial_settings
@@ -26,7 +26,7 @@ class ControllerModule(threading.Thread):
         self.__pubsub.subscribe(Settings, self.__on_settings)
         self.__pubsub.subscribe(Shutdown, self.__on_shutdown)
         self.__msgqueue: queue.Queue[ToESP | Literal["done"]] = queue.Queue()
-        self.__comms = EspComms()
+        self.__comms = EspComms("ttu/USB0" if sys.platform == "linux" else "COM1")
 
     def __on_send_message(self, msg: Send):
         self.__msgqueue.put(ToESP(msg.msg.codes, self.__settings.rtty))

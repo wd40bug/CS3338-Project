@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import os
 import sys
 import time
 from typing import Final, Deque
@@ -41,16 +42,25 @@ if __name__ == "__main__":
     # openSUSE handles standard fork() well.
     mp.set_start_method("spawn", force=True)
 
+    no_radio: Final = int(os.getenv("NO_RADIO", 0))
+
+    if no_radio not in [0,1]:
+        logger.error(f"Unknown NO_RADIO value: {no_radio}, should only be 0 or 1")
+        sys.exit(1)
 
     broker = BrokerModule()
     debug_socket = DebugSocket()
     dsp = DspModule(opts)
-    # controller = ControllerModule(current_system_opts)
+    if no_radio == 0:
+        controller = ControllerModule(opts)
+    else:
+        controller = None
 
     broker.start()
     time.sleep(0.2)
     debug_socket.start()
-    # controller.start()
+    if controller is not None:
+        controller.start()
     dsp.start()
     time.sleep(1)
 
@@ -61,7 +71,8 @@ if __name__ == "__main__":
 
     debug_socket.join()
     dsp.join()
-    # controller.join()
+    if controller is not None:
+        controller.join()
     broker.stop()
 
     # breakpoint()

@@ -23,10 +23,9 @@ class ToESP(msgspec.Struct, frozen=True):
 
 class EspComms:
     """Class wrapping a serial.Serial port and our communication strategy"""
-    def __init__(self) -> None:
-        #TODO: Option for port
+    def __init__(self, port: str) -> None:
         self.__encoder = msgspec.json.Encoder()
-        self.__esp: serial.Serial = serial.Serial(port="/dev/ttyUSB0", baudrate=115200)
+        self.__esp: serial.Serial = serial.Serial(port=port, baudrate=115200)
         time.sleep(0.05)
         self.__esp.reset_input_buffer()
         time.sleep(0.2)

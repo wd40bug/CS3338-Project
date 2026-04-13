@@ -1,5 +1,6 @@
 # from dataclasses import dataclass, field
 from enum import IntEnum
+from sys import platform
 from typing import Final, Literal, ClassVar, Self
 
 from msgspec import Struct
