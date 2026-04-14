@@ -13,7 +13,7 @@ from rtty_sdr.controller.controller import ControllerModule
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.DSP import DspModule
 from rtty_sdr.debug.debug_socket import DebugSocket
-from rtty_sdr.ui.GUI import RttyWebTerminal, ui
+from rtty_sdr.ui.GUI import RttyWebGUI, ui
 
 logger.remove()
 logger.add(sys.stderr, level="TRACE", enqueue=True)
@@ -33,9 +33,7 @@ opts = SystemOpts.default(source='internal')
 
 @ui.page("/")
 def index_page() -> None:
-    opts: Final[SystemOpts] = SystemOpts.default(source="internal")
-    # Kept early_logs in the instantiation just in case other parts of your architecture strictly pass it
-    RttyWebTerminal(initial_settings=opts)
+    RttyWebGUI(initial_settings=opts)
 
 if __name__ == "__main__":
     # Required for safe cross-platform multiprocessing, though

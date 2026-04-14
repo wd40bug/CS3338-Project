@@ -171,7 +171,7 @@ def encode(
     for mapped in mapped_values:
         # For None shift (either) just use previous shift
         if mapped.shift is not None and mapped.shift != shift:
-            ret.extend([mapped.shift, mapped.code])
+            ret.extend([int(mapped.shift), mapped.code])
             shift = mapped.shift
         else:
             ret.append(mapped.code)

@@ -1,4 +1,5 @@
 import crcmod.predefined
+from loguru import logger
 import msgspec
 from typing import Self
 
@@ -70,6 +71,7 @@ class RecvMessage(ProtocolMessage, frozen=True):
     ) -> Self:
         checksum = int(checksum_str, 16)
         calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
+        logger.trace(f"Codes: {codes}, checksum_start: {checksum_start_idx}, calculatedChecksum: {calculatedChecksum:4x}")
         return cls(
             msg=msg,
             callsign=callsign,

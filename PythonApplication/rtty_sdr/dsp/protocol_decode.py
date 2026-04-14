@@ -119,16 +119,14 @@ def protocol(
                         if data_length != 0
                         else ProtocolState.Checksum
                     )
+                    checksum_start_idx = len(codes)
                     states.change(index, state)
             case ProtocolState.Data:
                 if len(chars) == LengthLen + data_length:
                     state = ProtocolState.Checksum
+                    checksum_start_idx = len(codes)
                     states.change(index, state)
             case ProtocolState.Checksum:
-                # Start
-                if len(chars) == LengthLen + data_length:
-                    checksum_start_idx = len(codes)
-                # End
                 if len(chars) == LengthLen + data_length + ChecksumLen:
                     state = ProtocolState.Callsign
                     states.change(index, state)
@@ -153,4 +151,5 @@ def protocol(
                     )
                     debugs.clear()
                     chars = ""
+                    codes.clear()
                     shift = None

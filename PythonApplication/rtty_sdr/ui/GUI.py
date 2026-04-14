@@ -1,20 +1,22 @@
 import asyncio
-from typing import Literal
+from datetime import datetime
+from typing import Literal, cast
 import collections
 from typing import Deque, Final, Any, Optional
 from loguru import logger
 import loguru
 from nicegui import ui, app
+from nicegui.elements.chat_message import ChatMessage
 
 # Assuming these imports match your local project structure
 from rtty_sdr.comms.messages import ReceivedMessage, Send, Shutdown, SendInternal, Sent
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.options import SystemOpts
-from rtty_sdr.core.protocol import RecvMessage, SendMessage
+from rtty_sdr.core.protocol import ProtocolMessage, RecvMessage, SendMessage
 from rtty_sdr.ui.settings import SettingsMenu
 
 
-class RttyWebTerminal:
+class RttyWebGUI:
     def __init__(
         self,
         initial_settings: SystemOpts,
@@ -38,22 +40,31 @@ class RttyWebTerminal:
         self.__setup_ui()
 
         ui.context.client.on_connect(self.__on_mount)
+        app.on_shutdown(self.__app_shutdown)
 
     def __setup_ui(self) -> None:
         # Header
-        with ui.header(elevated=True).classes("items-center justify-between bg-blue-grey-900"):
+        with ui.header(elevated=True).classes(
+            "items-center justify-between bg-blue-grey-900"
+        ):
             ui.label("RTTY SDR Chat").classes("text-h6 text-white font-bold")
             with ui.row():
-                ui.button("Settings", icon="settings", on_click=self.__open_settings).props("flat color=white")
-                ui.button("Quit", icon="power_settings_new", on_click=self.__action_quit).props("flat color=red")
+                ui.button(
+                    "Settings", icon="settings", on_click=self.__open_settings
+                ).props("flat color=white")
+                ui.button(
+                    "Quit", icon="power_settings_new", on_click=self.__action_quit
+                ).props("flat color=red")
+                ui.button("Debugging", icon="bug_report").props("flat color=orange")
 
         # Main Layout: Centered Chat View
-        with ui.column().classes("w-full max-w-5xl mx-auto h-[calc(100vh-80px)] p-4 no-wrap"):
-            
+        with ui.column().classes(
+            "w-full max-w-5xl mx-auto h-[calc(100vh-80px)] p-4 no-wrap"
+        ):
             self.__message_container = ui.column().classes(
                 "w-full flex-grow overflow-y-auto bg-gray-100 p-4 rounded-lg border shadow-inner items-stretch"
             )
-            
+
             with ui.row().classes("w-full items-center mt-4 no-wrap gap-2"):
                 self.__input = (
                     ui.input(placeholder="Type message to transmit (Enter to send)...")
@@ -61,7 +72,9 @@ class RttyWebTerminal:
                     .props("outlined rounded")
                     .on("keydown.enter", self.__send_message)
                 )
-                ui.button(icon="send", on_click=self.__send_message).classes("h-14 w-14 rounded-full")
+                ui.button(icon="send", on_click=self.__send_message).classes(
+                    "h-14 w-14 rounded-full"
+                )
 
     async def __on_mount(self) -> None:
         logger.debug("Web TUI mounted")
@@ -72,11 +85,47 @@ class RttyWebTerminal:
         assert self.__loop is not None
         self.__loop.call_soon_threadsafe(self.__render_received_message, msg.msg)
 
+    def __on_msg_clicked(
+        self, msg: ChatMessage, meta: ProtocolMessage, stamp: datetime
+    ):
+        sent = isinstance(meta, SendMessage)
+        act = "Sent" if sent else "Received"
+        logger.info("MSG CLICKED")
+        with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
+            ui.label(f"{act} Message Details").classes("text-h5")
+            ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
+            if sent:
+                ui.label(f"Intended: {meta.encoding}")
+                #TODO: Corruption
+                ui.label(f"Sent: {meta.encoding}")
+            else:
+                assert isinstance(meta, RecvMessage)
+                ui.label(f"Received: {meta.encoding}")
+                ui.label(f"Corrected: {meta.encoding}")
+                if meta.validChecksum:
+                    ui.label(f"Checksum Passed!")
+                else:
+                    ui.label(f"Invalid Checksum! Calculated: {meta.calculatedChecksum:4X}")
+            ui.label(f"Codes: {meta.codes}")
+            dialog.open()
+
     def __render_received_message(self, message: RecvMessage) -> None:
         if self.__message_container is None:
             return
         with self.__message_container:
-            ui.chat_message(message.msg, name=message.callsign, sent=False, text_html=False)
+            stamp = datetime.now()
+            ui.chat_message(
+                message.msg,
+                name=message.callsign,
+                sent=False,
+                text_html=False,
+                stamp=stamp.strftime("%Y-%m-%d %H:%M:%S"),
+            ).on(
+                "click",
+                lambda e: self.__on_msg_clicked(
+                    cast(ChatMessage, e.sender), message, stamp
+                ),
+            )
         self.__scroll_chat()
 
     def __on_sent(self, _: Sent) -> None:
@@ -89,16 +138,26 @@ class RttyWebTerminal:
 
         text_val: Final[str] = self.__input.value
 
-        if self.__message_container:
-            with self.__message_container:
-                ui.chat_message(text_val, name="YOU", sent=True, text_html=False)
-        self.__scroll_chat()
-
         msg: Final[SendMessage] = SendMessage.create(
             text_val,
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
         )
+
+        if self.__message_container:
+            with self.__message_container:
+                stamp = datetime.now()
+                ui.chat_message(
+                    text_val,
+                    name="YOU",
+                    sent=True,
+                    text_html=False,
+                    stamp=stamp.strftime("%Y-%m-%d %H:%M:%S"),
+                ).on(
+                    "click",
+                    lambda e: self.__on_msg_clicked(cast(ChatMessage, e), msg, stamp),
+                )
+        self.__scroll_chat()
 
         if self.__settings.opts.source == "microphone":
             self.__pubsub.publish(Send(msg))
@@ -116,38 +175,18 @@ class RttyWebTerminal:
                 )
 
     def __open_settings(self) -> None:
-        # with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
-        #     ui.label("RTTY Settings").classes("text-h5 font-bold mb-4")
-        #     
-        #     baud = ui.number("Baud Rate", value=self.__settings.rtty.baud).classes("w-full mb-2")
-        #     mark = ui.number("Mark Frequency", value=self.__settings.rtty.mark).classes("w-full mb-2")
-        #     shift = ui.number("Shift Frequency", value=self.__settings.rtty.shift).classes("w-full mb-2")
-        #     pre_stops = ui.number("Pre-Message Stops", value=self.__settings.rtty.pre_msg_stops).classes("w-full mb-4")
-        #
-        #     def apply_and_close() -> None:
-        #         if baud.value: self.__settings.rtty.baud = baud.value
-        #         if mark.value: self.__settings.rtty.mark = int(mark.value)
-        #         if shift.value: self.__settings.rtty.shift = int(shift.value)
-        #         if pre_stops.value: self.__settings.rtty.pre_msg_stops = int(pre_stops.value)
-        #         
-        #         logger.info(f"Updated settings: Baud={baud.value}, Mark={mark.value}, Shift={shift.value}")
-        #         dialog.close()
-        #
-        #     with ui.row().classes("w-full justify-end mt-2"):
-        #         ui.button("Cancel", on_click=dialog.close).props("flat color=grey")
-        #         ui.button("Apply", on_click=apply_and_close).props("color=primary")
-        #
-        # dialog.open()
         self.__settings.render()
 
     def __action_quit(self) -> None:
         logger.info("User requested exit from Web UI. System shutdown broadcasted.")
-        self.__is_shutting_down = True
-        self.__pubsub.publish(Shutdown())
-        ui.run_javascript('window.close()')
+        ui.run_javascript("window.close()")
         app.shutdown()
 
-    def __on_shutdown(self, _: Shutdown) -> Optional[Literal['stop']]:
+    def __app_shutdown(self) -> None:
+        self.__is_shutting_down = True
+        self.__pubsub.publish(Shutdown())
+
+    def __on_shutdown(self, _: Shutdown) -> Optional[Literal["stop"]]:
         if not self.__is_shutting_down:
             logger.error("Received external shutdown signal, closing UI")
             self.__is_shutting_down = True
