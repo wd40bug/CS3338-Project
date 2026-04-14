@@ -5,12 +5,13 @@ from loguru import logger
 from rtty_sdr.comms.messages import (
     DebugMessage,
     ReceivedMessage,
+    Receiving,
     SendInternal,
     Settings,
     Shutdown,
 )
 from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
-from rtty_sdr.dsp.decode import decode_stream
+from rtty_sdr.dsp.decode import Status, decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.commands import (
     CommandsQueueQueue,
@@ -19,7 +20,7 @@ from rtty_sdr.dsp.commands import (
     CommandsQueue,
     RestartCommand,
 )
-from typing import Iterator, assert_never
+from typing import Callable, Iterator, assert_never
 
 from rtty_sdr.dsp.protocol_decode import ProtocolDebug, StoppedMsg, protocol
 from rtty_sdr.core.protocol import RecvMessage
@@ -36,12 +37,18 @@ class DspModule(multiprocessing.Process):
     def __init__(self, default_settings: SystemOpts) -> None:
         super().__init__()
         self.__default_settings = default_settings
+        self.__pubsub: PubSub | None = None
+
+    def __status_callback(self, status: Status):
+        if self.__pubsub:
+            self.__pubsub.publish(Receiving())
 
     @staticmethod
     def __create_pipeline(
         settings: SystemOpts,
         commands_queue: CommandsQueueQueue,
         static_data_queue: queue.Queue[npt.NDArray[np.float64]],
+        status_callback: Callable[[Status], None],
     ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
         source = (
             MicrophoneSource(opts=settings.decode)
@@ -57,12 +64,14 @@ class DspModule(multiprocessing.Process):
             else EnvelopeEngine(settings.envelope)
         )
         commands = CommandsQueue(commands_queue)
-        decode = decode_stream(source, squelch, engine, settings.stream, commands)
+        decode = decode_stream(
+            source, squelch, engine, settings.stream, commands, status_callback
+        )
         return protocol(decode, settings.baudot)
 
     @catch_and_broadcast
     def run(self) -> None:
-        pubsub = PubSub(module_name="DSP")
+        self.__pubsub = PubSub(module_name="DSP")
 
         command_queue: CommandsQueueQueue = queue.Queue()
         static_data_queue: queue.Queue[npt.NDArray[np.float64]] = queue.Queue()
@@ -79,23 +88,26 @@ class DspModule(multiprocessing.Process):
         def on_settings_change(msg: Settings):
             command_queue.put(RestartCommand(new_settings=msg.settings))
 
-        pubsub.subscribe(SendInternal, on_send_internal)
-        pubsub.subscribe(Shutdown, on_shutdown)
-        pubsub.subscribe(Settings, on_settings_change)
+        self.__pubsub.subscribe(SendInternal, on_send_internal)
+        self.__pubsub.subscribe(Shutdown, on_shutdown)
+        self.__pubsub.subscribe(Settings, on_settings_change)
 
         # Spin up callback thread
-        pubsub.run_receive()
+        self.__pubsub.run_receive()
 
         # Create pipeline
         pipeline = self.__create_pipeline(
-            self.__default_settings, command_queue, static_data_queue
+            self.__default_settings,
+            command_queue,
+            static_data_queue,
+            self.__status_callback,
         )
 
         while True:
             item, debug = next(pipeline)
             if isinstance(item, RecvMessage):
-                pubsub.publish(ReceivedMessage(item))
-                pubsub.publish(DebugMessage(debug, is_done=False))
+                self.__pubsub.publish(ReceivedMessage(item))
+                self.__pubsub.publish(DebugMessage(debug, is_done=False))
                 logger.trace(
                     f"Received msg {item.msg} with signal len {len(debug.decode.signal)}"
                 )
@@ -111,10 +123,11 @@ class DspModule(multiprocessing.Process):
                             self.__settings,
                             command_queue,
                             static_data_queue,
+                            self.__status_callback,
                         )
-                        pubsub.publish(DebugMessage(debug, is_done=False))
+                        self.__pubsub.publish(DebugMessage(debug, is_done=False))
                     case "stop":
-                        pubsub.publish(DebugMessage(debug, is_done=True))
+                        self.__pubsub.publish(DebugMessage(debug, is_done=True))
                         logger.trace("Dsp Runner ending")
                         return
                     case _:

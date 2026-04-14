@@ -28,27 +28,44 @@ class SendInternal(msgspec.Struct, frozen=True):
         return cls(signal=signal)
 
 
+class Receiving(msgspec.Struct, frozen=True):
+    topic: ClassVar[Literal["dsp.receiving"]] = "dsp.receiving"
+
+
 class ReceivedMessage(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.received"]] = "dsp.received"
     msg: RecvMessage
+
 
 class DebugMessage(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.debug"]] = "dsp.debug"
     debug: ProtocolDebug
     is_done: bool
 
+
 class Shutdown(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["system.shutdown"]] = "system.shutdown"
+
 
 class Settings(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["ui.settings"]] = "ui.settings"
     settings: SystemOpts
 
+
 class Sent(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["controller.sent"]] = "controller.sent"
 
 
-type AnyMessage = Send | Sent | ReceivedMessage | SendInternal | Shutdown | Settings | DebugMessage
+type AnyMessage = (
+    Send
+    | Sent
+    | Receiving
+    | ReceivedMessage
+    | SendInternal
+    | Shutdown
+    | Settings
+    | DebugMessage
+)
 
 # breakpoint()
 topics_map: MappingProxyType[str, type[AnyMessage]] = MappingProxyType(

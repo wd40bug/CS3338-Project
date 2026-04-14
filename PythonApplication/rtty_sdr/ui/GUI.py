@@ -1,15 +1,15 @@
 import asyncio
 from datetime import datetime
 from typing import Literal, cast
-import collections
-from typing import Deque, Final, Any, Optional
+from typing import Deque, Final, Optional
 from loguru import logger
 import loguru
+import collections
 from nicegui import ui, app
 from nicegui.elements.chat_message import ChatMessage
 
 # Assuming these imports match your local project structure
-from rtty_sdr.comms.messages import ReceivedMessage, Send, Shutdown, SendInternal, Sent
+from rtty_sdr.comms.messages import ReceivedMessage, Receiving, Send, Shutdown, SendInternal, Sent
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import ProtocolMessage, RecvMessage, SendMessage
@@ -26,12 +26,16 @@ class RttyWebGUI:
 
         self.__loop: asyncio.AbstractEventLoop | None = None
 
+        self.__pending_send_spinners: Final[Deque[ui.spinner]] = collections.deque()
+        self.__active_recv_indicator: ui.row | None = None
+
         # UI Elements
         self.__message_container: ui.column | None = None
         self.__input: ui.input | None = None
         self.__settings: SettingsMenu = SettingsMenu(initial_settings)
 
         # Bind PubSub events
+        self.__pubsub.subscribe(Receiving, self.__on_receiving)
         self.__pubsub.subscribe(ReceivedMessage, self.__on_receive)
         self.__pubsub.subscribe(Shutdown, self.__on_shutdown)
         self.__pubsub.subscribe(Sent, self.__on_sent)
@@ -81,38 +85,34 @@ class RttyWebGUI:
         self.__pubsub.run_receive()
         self.__loop = asyncio.get_event_loop()
 
+    def __on_receiving(self, _: Receiving) -> None:
+        if self.__loop:
+            self.__loop.call_soon_threadsafe(self.__render_receiving_indicator)
+
+    def __render_receiving_indicator(self):
+        if self.__message_container is None:
+            return
+
+        with self.__message_container:
+            self.__active_recv_indicator = ui.row().classes("w-full items-center no-wrap text-gray-500")
+            with self.__active_recv_indicator:
+                ui.spinner('radio', size='sm', color='green').classes("mr-2")
+                ui.label("Incoming transmission...")
+
+        self.__scroll_chat()
+
     def __on_receive(self, msg: ReceivedMessage) -> None:
         assert self.__loop is not None
         self.__loop.call_soon_threadsafe(self.__render_received_message, msg.msg)
-
-    def __on_msg_clicked(
-        self, msg: ChatMessage, meta: ProtocolMessage, stamp: datetime
-    ):
-        sent = isinstance(meta, SendMessage)
-        act = "Sent" if sent else "Received"
-        logger.info("MSG CLICKED")
-        with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
-            ui.label(f"{act} Message Details").classes("text-h5")
-            ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
-            if sent:
-                ui.label(f"Intended: {meta.encoding}")
-                #TODO: Corruption
-                ui.label(f"Sent: {meta.encoding}")
-            else:
-                assert isinstance(meta, RecvMessage)
-                ui.label(f"Received: {meta.encoding}")
-                ui.label(f"Corrected: {meta.encoding}")
-                if meta.validChecksum:
-                    ui.label(f"Checksum Passed!")
-                else:
-                    ui.label(f"Invalid Checksum! Calculated: {meta.calculatedChecksum:4X}")
-            ui.label(f"Codes: {meta.codes}")
-            dialog.open()
 
     def __render_received_message(self, message: RecvMessage) -> None:
         if self.__message_container is None:
             return
         with self.__message_container:
+            if self.__active_recv_indicator:
+                self.__active_recv_indicator.delete()
+                self.__active_recv_indicator = None
+
             stamp = datetime.now()
             ui.chat_message(
                 message.msg,
@@ -128,9 +128,42 @@ class RttyWebGUI:
             )
         self.__scroll_chat()
 
+    def __on_msg_clicked(
+        self, _: ChatMessage, meta: ProtocolMessage, stamp: datetime
+    ):
+        sent = isinstance(meta, SendMessage)
+        act = "Sent" if sent else "Received"
+        logger.info("MSG CLICKED")
+        with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
+            ui.label(f"{act} Message Details").classes("text-h5")
+            ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
+            if sent:
+                ui.label(f"Intended: {meta.encoding}")
+                # TODO: Corruption
+                ui.label(f"Sent: {meta.encoding}")
+            else:
+                assert isinstance(meta, RecvMessage)
+                ui.label(f"Received: {meta.encoding}")
+                ui.label(f"Corrected: {meta.encoding}")
+                if meta.validChecksum:
+                    ui.label(f"Checksum Passed!")
+                else:
+                    ui.label(
+                        f"Invalid Checksum! Calculated: {meta.calculatedChecksum:4X}"
+                    )
+            ui.label(f"Codes: {meta.codes}")
+            dialog.open()
+
+
+
     def __on_sent(self, _: Sent) -> None:
-        # Hook for sent confirmation (e.g., removing a loading spinner)
-        pass
+        if self.__loop:
+            self.__loop.call_soon_threadsafe(self.__resolve_sent_spinner)
+
+    def __resolve_sent_spinner(self) -> None:
+        if self.__pending_send_spinners:
+            spinner = self.__pending_send_spinners.popleft()
+            spinner.set_visibility(False)
 
     def __send_message(self) -> None:
         if not self.__input or not self.__input.value:
@@ -145,7 +178,9 @@ class RttyWebGUI:
         )
 
         if self.__message_container:
-            with self.__message_container:
+            with self.__message_container, ui.row().classes("w-full justify-end items-center no-wrap gap-2"):
+                spinner = ui.spinner("radio", size="sm")
+                self.__pending_send_spinners.append(spinner)
                 stamp = datetime.now()
                 ui.chat_message(
                     text_val,
@@ -157,12 +192,14 @@ class RttyWebGUI:
                     "click",
                     lambda e: self.__on_msg_clicked(cast(ChatMessage, e), msg, stamp),
                 )
+                
         self.__scroll_chat()
 
         if self.__settings.opts.source == "microphone":
             self.__pubsub.publish(Send(msg))
         else:
             self.__pubsub.publish(SendInternal.create(text_val, self.__settings.opts))
+            self.__resolve_sent_spinner()
 
         self.__input.value = ""
 

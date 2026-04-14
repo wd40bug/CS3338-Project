@@ -1,5 +1,5 @@
 from enum import IntEnum, auto
-from typing import Annotated, Literal, Iterator, Iterable
+from typing import Annotated, Callable, Literal, Iterator, Iterable
 
 from loguru import logger
 import numpy as np
@@ -45,6 +45,7 @@ class DecodeState(IntEnum):
     DATA = auto()
     STOP = auto()
 
+type Status = Literal["signal"]
 
 def decode_stream(
     source: AudioSource,
@@ -52,6 +53,7 @@ def decode_stream(
     engine: DemodulatorEngine,
     opts: DecodeStreamOpts,
     pill: Commands,
+    status_callback: Callable[[Status], None] | None = None
 ) -> Iterator[DecodeYield]:
     signal_opts = opts.decode.signal
     countdown: None | int = None
@@ -111,6 +113,8 @@ def decode_stream(
                         idle_len += 1
                         if idle_len >= opts.idle_samples:
                             state = DecodeState.START
+                            if status_callback:
+                                status_callback("signal")
                             builder.change_state(i, state)
                     else:
                         idle_len = 0
