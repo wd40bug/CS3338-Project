@@ -32,6 +32,10 @@ class Receiving(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.receiving"]] = "dsp.receiving"
 
 
+class LostSignal(msgspec.Struct, frozen=True):
+    topic: ClassVar[Literal["dsp.lost_signal"]] = "dsp.lost_signal"
+
+
 class ReceivedMessage(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.received"]] = "dsp.received"
     msg: RecvMessage
@@ -60,6 +64,7 @@ type AnyMessage = (
     Send
     | Sent
     | Receiving
+    | LostSignal
     | ReceivedMessage
     | SendInternal
     | Shutdown

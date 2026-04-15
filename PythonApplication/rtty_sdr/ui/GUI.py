@@ -8,8 +8,15 @@ import collections
 from nicegui import ui, app
 from nicegui.elements.chat_message import ChatMessage
 
-# Assuming these imports match your local project structure
-from rtty_sdr.comms.messages import ReceivedMessage, Receiving, Send, Shutdown, SendInternal, Sent
+from rtty_sdr.comms.messages import (
+    LostSignal,
+    ReceivedMessage,
+    Receiving,
+    Send,
+    Shutdown,
+    SendInternal,
+    Sent,
+)
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import ProtocolMessage, RecvMessage, SendMessage
@@ -36,6 +43,7 @@ class RttyWebGUI:
 
         # Bind PubSub events
         self.__pubsub.subscribe(Receiving, self.__on_receiving)
+        self.__pubsub.subscribe(LostSignal, self.__on_signal_lost)
         self.__pubsub.subscribe(ReceivedMessage, self.__on_receive)
         self.__pubsub.subscribe(Shutdown, self.__on_shutdown)
         self.__pubsub.subscribe(Sent, self.__on_sent)
@@ -61,7 +69,6 @@ class RttyWebGUI:
                 ).props("flat color=red")
                 ui.button("Debugging", icon="bug_report").props("flat color=orange")
 
-        # Main Layout: Centered Chat View
         with ui.column().classes(
             "w-full max-w-5xl mx-auto h-[calc(100vh-80px)] p-4 no-wrap"
         ):
@@ -93,13 +100,27 @@ class RttyWebGUI:
         if self.__message_container is None:
             return
 
+        if self.__active_recv_indicator is not None:
+            return
+
         with self.__message_container:
-            self.__active_recv_indicator = ui.row().classes("w-full items-center no-wrap text-gray-500")
+            self.__active_recv_indicator = ui.row().classes(
+                "w-full items-center no-wrap text-gray-500"
+            )
             with self.__active_recv_indicator:
-                ui.spinner('radio', size='sm', color='green').classes("mr-2")
+                ui.spinner("radio", size="sm", color="green").classes("mr-2")
                 ui.label("Incoming transmission...")
 
         self.__scroll_chat()
+
+    def __on_signal_lost(self, _: LostSignal):
+        if self.__loop:
+            self.__loop.call_soon_threadsafe(self.__remove_receiving_spinner)
+
+    def __remove_receiving_spinner(self):
+        if self.__active_recv_indicator:
+            self.__active_recv_indicator.delete()
+            self.__active_recv_indicator = None
 
     def __on_receive(self, msg: ReceivedMessage) -> None:
         assert self.__loop is not None
@@ -109,9 +130,7 @@ class RttyWebGUI:
         if self.__message_container is None:
             return
         with self.__message_container:
-            if self.__active_recv_indicator:
-                self.__active_recv_indicator.delete()
-                self.__active_recv_indicator = None
+            self.__remove_receiving_spinner()
 
             stamp = datetime.now()
             ui.chat_message(
@@ -128,9 +147,7 @@ class RttyWebGUI:
             )
         self.__scroll_chat()
 
-    def __on_msg_clicked(
-        self, _: ChatMessage, meta: ProtocolMessage, stamp: datetime
-    ):
+    def __on_msg_clicked(self, _: ChatMessage, meta: ProtocolMessage, stamp: datetime):
         sent = isinstance(meta, SendMessage)
         act = "Sent" if sent else "Received"
         logger.info("MSG CLICKED")
@@ -154,8 +171,6 @@ class RttyWebGUI:
             ui.label(f"Codes: {meta.codes}")
             dialog.open()
 
-
-
     def __on_sent(self, _: Sent) -> None:
         if self.__loop:
             self.__loop.call_soon_threadsafe(self.__resolve_sent_spinner)
@@ -178,7 +193,10 @@ class RttyWebGUI:
         )
 
         if self.__message_container:
-            with self.__message_container, ui.row().classes("w-full justify-end items-center no-wrap gap-2"):
+            with (
+                self.__message_container,
+                ui.row().classes("w-full justify-end items-center no-wrap gap-2"),
+            ):
                 spinner = ui.spinner("radio", size="sm")
                 self.__pending_send_spinners.append(spinner)
                 stamp = datetime.now()
@@ -192,7 +210,7 @@ class RttyWebGUI:
                     "click",
                     lambda e: self.__on_msg_clicked(cast(ChatMessage, e), msg, stamp),
                 )
-                
+
         self.__scroll_chat()
 
         if self.__settings.opts.source == "microphone":

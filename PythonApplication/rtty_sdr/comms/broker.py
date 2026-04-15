@@ -47,6 +47,7 @@ class BrokerModule(threading.Thread):
             logger.info("Online. Routing traffic...")
 
             # 3. Start the proxy (Blocks forever until context is terminated)
+            logger.info("Broker running")
             zmq.proxy(self.__frontend, self.__backend, self.__debug)
 
         except zmq.error.ContextTerminated:

@@ -1,11 +1,12 @@
+from typing_extensions import Callable
 from numpy._core import indices
 from rtty_sdr.core.protocol import RecvMessage
 
-from typing import Final, Iterator, Self
+from typing import Final, Iterator, Literal, Self
 from enum import IntEnum, auto
 from collections.abc import Iterable
 from loguru import logger
-from rtty_sdr.core.baudot import decode
+from rtty_sdr.core.baudot import decode, validate_char, validate_code
 import msgspec
 
 from rtty_sdr.core.options import BaudotOptions, Shift
@@ -17,11 +18,13 @@ LengthLen: Final[int] = 2
 ChecksumLen: Final[int] = 4
 CallsignLen: Final[int] = 6
 
+
 class ProtocolState(IntEnum):
     Length = auto()
     Data = auto()
     Checksum = auto()
     Callsign = auto()
+
 
 class ProtocolDebug(msgspec.Struct, frozen=True):
     decode: DecodeDebug
@@ -38,11 +41,18 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
             states=[state for d in debugs for state in d.states],
         )
 
+
 class StoppedMsg(msgspec.Struct, frozen=True):
     cmd: Command
 
+
+type Status = Literal["signal", "signal_lost"]
+
+
 def protocol(
-    code_generator: Iterable[DecodeYield], opts: BaudotOptions
+    code_generator: Iterable[DecodeYield],
+    opts: BaudotOptions,
+    status_callback: Callable[[Status], None] | None = None,
 ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
     shift: Shift | None = None
     state: ProtocolState = ProtocolState.Length
@@ -52,9 +62,10 @@ def protocol(
     debugs: list[DecodeDebug] = []
     checksum_start_idx = 0
     states = StateChanges(state)
+    checksum = ""
 
     for resp, resp_debug in code_generator:
-        assert resp.kind != "code" or len(resp_debug.indices) != 0 
+        assert resp.kind != "code" or len(resp_debug.indices) != 0
         if len(resp_debug.indices) != 0:
             index = resp_debug.indices[-1]
         elif len(debugs) != 0:
@@ -72,8 +83,12 @@ def protocol(
             states.change(index, state)
             chars = ""
             shift = None
+            if status_callback:
+                status_callback("signal_lost")
             continue
         elif resp.kind == "command":
+            if status_callback:
+                status_callback("signal_lost")
             if resp.command.command == "restart":
                 yield (
                     StoppedMsg(
@@ -96,6 +111,15 @@ def protocol(
                 )
             return
         code = resp.code
+        if not validate_code(code):
+            logger.warning(f"Invalid code: {code}, resetting")
+            codes.clear()
+            chars = ""
+            shift = None
+            state = ProtocolState.Length
+            continue
+        if len(codes) == 0 and status_callback:
+            status_callback("signal")
 
         codes.append(code)
         char, shift = decode(code, opts, shift)
@@ -114,6 +138,8 @@ def protocol(
                         )
                         chars = ""
                         shift = None
+                        codes.clear()
+                        continue
                     state = (
                         ProtocolState.Data
                         if data_length != 0
@@ -128,14 +154,26 @@ def protocol(
                     states.change(index, state)
             case ProtocolState.Checksum:
                 if len(chars) == LengthLen + data_length + ChecksumLen:
+                    checksum = chars[
+                        LengthLen + data_length : LengthLen + data_length + ChecksumLen
+                    ]
+                    try:
+                        _ = int(checksum, 16)
+                    except ValueError:
+                        logger.warning(
+                            f"Invalid checksum characters: {checksum}, restarting"
+                        )
+                        state = ProtocolState.Length
+                        states.change(index, state)
+                        chars = ""
+                        codes.clear()
+                        shift = None
+                        continue
                     state = ProtocolState.Callsign
                     states.change(index, state)
             case ProtocolState.Callsign:
                 if len(chars) == LengthLen + data_length + ChecksumLen + CallsignLen:
                     msg = chars[LengthLen : LengthLen + data_length]
-                    checksum = chars[
-                        LengthLen + data_length : LengthLen + data_length + ChecksumLen
-                    ]
                     callsign = chars[LengthLen + data_length + ChecksumLen :]
                     state = ProtocolState.Length
                     yield (

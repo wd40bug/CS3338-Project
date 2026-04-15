@@ -1,5 +1,6 @@
 import inspect
 import threading
+import time
 from typing import (
     Final,
     Callable,
@@ -62,6 +63,7 @@ class PubSub:
 
         self.__timeout_ms = None
         self.__on_timeout: Callable[[], Optional[Literal["stop"]]] = lambda: None
+        time.sleep(0.2)
 
     def set_timeout(
         self,
@@ -122,13 +124,14 @@ class PubSub:
                 logger.warning(
                     f"Shutting down pubsub without notifying owner ({self.__module})"
                 )
+                self.publish(Shutdown())
                 break
 
             assert topic in topics_map, (
                 f"topic: {topic} not in topics_map: {topics_map.keys()}"
             )
 
-            logger.trace(f"module: {self.__module} received {topic}")
+            logger.trace(f"module {self.__module} received {topic}")
 
             expected_type = topics_map[topic]
             assert topic in decoders, (
@@ -160,5 +163,6 @@ class PubSub:
             self.__run_receive_internal()
 
     def publish(self, msg: AnyMessage):
+        logger.trace(f"Module {self.__module} sent {msg.topic}")
         packed = self.__encoder.encode(msg)
         self.__pub_socket.send_multipart([msg.topic.encode(), packed])

@@ -78,7 +78,6 @@ BOTH_Map: Final[dict[str, int]] = {
 }
 
 
-@staticmethod
 def validate_char(char: str, case_sensitive: bool = False) -> bool:
     """
     Return if the char is a valid Baudot character
@@ -91,6 +90,9 @@ def validate_char(char: str, case_sensitive: bool = False) -> bool:
 
     """
     return get_mapped(char, case_sensitive) is not None
+
+def validate_code(code: int) -> bool:
+    return code in FIGS_Map_rev or code in LTRS_Map_rev or code in Shift
 
 
 @dataclass

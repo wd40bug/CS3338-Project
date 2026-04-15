@@ -18,18 +18,8 @@ from rtty_sdr.ui.GUI import RttyWebGUI, ui
 logger.remove()
 logger.add(sys.stderr, level="TRACE", enqueue=True)
 logger.add("log.log", level="TRACE", mode="a", enqueue=True)
-early_logs: Final[Deque[loguru.Message]] = collections.deque(maxlen=500)
 
-
-def temp_memory_sink(message: loguru.Message) -> None:
-    early_logs.append(message)
-
-
-temp_handler_id = logger.add(
-    temp_memory_sink, colorize=True, level="TRACE", enqueue=True
-)
-
-opts = SystemOpts.default(source='internal')
+opts = SystemOpts.default(source='microphone')
 
 @ui.page("/")
 def index_page() -> None:

@@ -6,14 +6,20 @@ import multiprocessing as mp
 
 from loguru import logger
 from rtty_sdr.comms.broker import BrokerModule
-from rtty_sdr.comms.messages import DebugMessage, ReceivedMessage, Send, SendInternal, Settings, Shutdown
+from rtty_sdr.comms.messages import (
+    DebugMessage,
+    ReceivedMessage,
+    Send,
+    SendInternal,
+    Settings,
+    Shutdown,
+)
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.controller.controller import ControllerModule
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import SendMessage
 from rtty_sdr.debug.debug_socket import DebugSocket
 from rtty_sdr.dsp.DSP import DspModule
-
 
 import matplotlib.pyplot as plt
 from rtty_sdr.debug.state_changes import graph_states
@@ -23,31 +29,30 @@ logger.remove()
 logger.add(sys.stderr, enqueue=True, level="TRACE")
 
 if __name__ == "__main__":
-    settings = SystemOpts.default(source="internal", engine="goertzel", pre_msg_stops=4)
+    settings = SystemOpts.default(
+        source="microphone", engine="goertzel", pre_msg_stops=10
+    )
 
     mp.set_start_method("spawn", force=True)
 
     broker = BrokerModule()
     debug_socket = DebugSocket()
     dsp = DspModule(settings)
-    # dsp_thread = threading.Thread(target=dsp.run)
+    dsp_thread = threading.Thread(target=dsp.run)
     controller = ControllerModule(settings)
 
     broker.start()
     time.sleep(0.2)
     debug_socket.start()
-    dsp.start()
     controller.start()
-    time.sleep(2)
+    dsp_thread.start()
+    time.sleep(1)
 
     pubsub = PubSub(module_name="NOUI RUN")
 
     actions: list[
         tuple[Literal["send"], str] | tuple[Literal["change_settings"], SystemOpts]
-    ] = [
-        ("send", "Hello World"),
-        ("send", "Message 2!")
-    ]
+    ] = [("send", "Hello World"), ("send", "Message 2!")]
 
     num_msgs = sum(1 for act in actions if act[0] == "send")
 
@@ -57,7 +62,9 @@ if __name__ == "__main__":
                 pubsub.publish(SendInternal.create(act[1], settings))
                 logger.info(f"Sending internal msg: {act[1]}")
             else:
-                pubsub.publish(Send(SendMessage.create(act[1], settings.callsign, settings.baudot)))
+                pubsub.publish(
+                    Send(SendMessage.create(act[1], settings.callsign, settings.baudot))
+                )
                 logger.info(f"Sending msg: {act[1]}")
         else:
             settings = act[1]
@@ -67,6 +74,7 @@ if __name__ == "__main__":
     logger.info("Done with actions, receiving data")
 
     recv_msgs = []
+
     def on_timeout():
         logger.error(f"Timed out waiting for message: {len(recv_msgs) + 1}")
         pubsub.publish(Shutdown())
@@ -85,7 +93,7 @@ if __name__ == "__main__":
             pubsub.publish(Shutdown())
             return "stop"
 
-    pubsub.set_timeout(10000, on_timeout)
+    pubsub.set_timeout(20000, on_timeout)
     pubsub.subscribe(ReceivedMessage, on_receive)
     pubsub.subscribe(DebugMessage, on_debug)
 
@@ -95,7 +103,7 @@ if __name__ == "__main__":
 
     pubsub.publish(Shutdown())
     debug_socket.join()
-    dsp.join()
+    dsp_thread.join()
     controller.join()
     broker.stop()
     broker.join()

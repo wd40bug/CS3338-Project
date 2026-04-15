@@ -4,6 +4,7 @@ import queue
 from loguru import logger
 from rtty_sdr.comms.messages import (
     DebugMessage,
+    LostSignal,
     ReceivedMessage,
     Receiving,
     SendInternal,
@@ -11,18 +12,17 @@ from rtty_sdr.comms.messages import (
     Shutdown,
 )
 from rtty_sdr.core.catch_and_broadcast import catch_and_broadcast
-from rtty_sdr.dsp.decode import Status, decode_stream
+from rtty_sdr.dsp.decode import decode_stream
 from rtty_sdr.dsp.engines import EnvelopeEngine, GoertzelEngine
 from rtty_sdr.dsp.commands import (
     CommandsQueueQueue,
     FullStopCommand,
-    Commands,
     CommandsQueue,
     RestartCommand,
 )
 from typing import Callable, Iterator, assert_never
 
-from rtty_sdr.dsp.protocol_decode import ProtocolDebug, StoppedMsg, protocol
+from rtty_sdr.dsp.protocol_decode import ProtocolDebug, Status, StoppedMsg, protocol
 from rtty_sdr.core.protocol import RecvMessage
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.squelch import Squelch
@@ -40,8 +40,13 @@ class DspModule(multiprocessing.Process):
         self.__pubsub: PubSub | None = None
 
     def __status_callback(self, status: Status):
-        if self.__pubsub:
-            self.__pubsub.publish(Receiving())
+        match status:
+            case "signal":
+                if self.__pubsub:
+                    self.__pubsub.publish(Receiving())
+            case "signal_lost":
+                if self.__pubsub:
+                    self.__pubsub.publish(LostSignal())
 
     @staticmethod
     def __create_pipeline(
@@ -65,9 +70,9 @@ class DspModule(multiprocessing.Process):
         )
         commands = CommandsQueue(commands_queue)
         decode = decode_stream(
-            source, squelch, engine, settings.stream, commands, status_callback
+            source, squelch, engine, settings.stream, commands
         )
-        return protocol(decode, settings.baudot)
+        return protocol(decode, settings.baudot, status_callback)
 
     @catch_and_broadcast
     def run(self) -> None:

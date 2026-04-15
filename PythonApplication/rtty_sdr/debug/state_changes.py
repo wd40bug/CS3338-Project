@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import TypeVar, Final
+from loguru import logger
 import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
@@ -13,9 +14,8 @@ class StateChanges[T]:
         self.__first = 0
 
     def change(self, index: int, state: T):
-        assert index not in self.__state_changes, (
-            f"Tried to overwrite state {self.__state_changes[index]} @ {index} with {state}"
-        )
+        if index in self.__state_changes:
+            logger.warning(f"Overwriting state {self.__state_changes[index]} @ {index} with {state}")
         self.__state_changes[index] = state
 
     def build(self, index: int, default: T) -> list[T]:

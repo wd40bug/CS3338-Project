@@ -26,7 +26,7 @@ class ControllerModule(threading.Thread):
         self.__pubsub.subscribe(Settings, self.__on_settings)
         self.__pubsub.subscribe(Shutdown, self.__on_shutdown)
         self.__msgqueue: queue.Queue[ToESP | Literal["done"]] = queue.Queue()
-        self.__comms = EspComms("ttu/USB0" if sys.platform == "linux" else "COM1")
+        self.__comms = EspComms("/dev/ttyUSB0" if sys.platform == "linux" else "COM1")
 
     def __on_send_message(self, msg: Send):
         self.__msgqueue.put(ToESP(msg.msg.codes, self.__settings.rtty))

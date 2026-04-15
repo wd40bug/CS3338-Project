@@ -37,8 +37,8 @@ class Transmitter{
   int PreStops = 40;
   
   void begin(){
-    digitalWrite(Transmit, HIGH);
     pinMode(Transmit, OUTPUT);
+    digitalWrite(Transmit, HIGH);
     pinMode(SquareWaveOut, OUTPUT);
   }
   void start(){
@@ -92,9 +92,9 @@ void loop() {
     }
 
     // Pass the populated document directly to your handling logic
-    handlePayload(doc); 
-    
-    Serial.println("Success: Stream Parsed");
+    Serial.println("REPLY: Message Received");
+    handlePayload(doc);
+    Serial.println("DONE: Sent Message");    
   }
 }
 
@@ -119,8 +119,14 @@ void handlePayload(JsonDocument& doc) {
   
   JsonArray msgarr = doc["message"];
 
+  Serial.println("DEBUG: Starting transmission");
+  Serial.println("DEBUG: Msg has len " + String(msgarr.size()));
   trans.start();
   for(int i = 0; i < msgarr.size(); i++){
+    Serial.print("TRACE: Sending char: ");
+    Serial.print(i);
+    Serial.print(" : ");
+    Serial.println(msgarr[i].as<int>());
     trans.send_char(msgarr[i].as<int>());
   }
   trans.stop();
