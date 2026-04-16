@@ -1,9 +1,9 @@
 # from dataclasses import dataclass, field
 from enum import IntEnum
-from sys import platform
 from typing import Final, Literal, ClassVar, Self
 
 from msgspec import Struct
+import sys
 
 
 class RTTYOpts(Struct):
@@ -115,6 +115,7 @@ class SystemOpts(Struct):
     engine: Literal["goertzel", "envelope"]
     source: Literal["microphone", "internal"]
     callsign: str
+    port: str | None
 
     @classmethod
     def default(
@@ -144,6 +145,7 @@ class SystemOpts(Struct):
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
+        port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0"
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -191,4 +193,5 @@ class SystemOpts(Struct):
             engine=engine,
             source=source,
             callsign=callsign,
+            port=port
         )

@@ -17,6 +17,8 @@ from nicegui.elements.number import Number
 from nicegui.elements.select import Select
 from pydantic import Field, BaseModel, ConfigDict
 
+from rtty_sdr.comms.messages import Settings
+from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.options import Shift, SystemOpts
 from nicegui import ui
 
@@ -99,6 +101,7 @@ class SettingsMenu:
             selections={"internal": "Debug", "microphone": "Microphone"},
             write_back="source",
         ),
+        String(name="Port (empty for None)", write_back="port"),
         Header(content="RTTY"),
         NumberSetting(name="Baud", min=10, max=200, write_back="rtty.baud"),
         NumberSetting(
@@ -199,8 +202,9 @@ class SettingsMenu:
 
     opts: SystemOpts
 
-    def __init__(self, initial_settings: SystemOpts) -> None:
+    def __init__(self, initial_settings: SystemOpts, pubsub: PubSub) -> None:
         self.opts = initial_settings
+        self.__pubsub = pubsub
 
     def render(self) -> None:
         with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
@@ -304,12 +308,22 @@ class SettingsMenu:
                     )
                     return
 
+                source = proposed_changes.get("source", getattr_nested(self.opts, "source"))
+                port = proposed_changes.get("port", getattr_nested(self.opts, "port"))
+
+                if source == "microphone" and port == "":
+                    ui.notify(
+                        f"Validation Error: Source=microphone requires a port"
+                    )
+                    return
+
                 for write_back, new_val in proposed_changes.items():
                     if not hasattr_nested(self.opts, write_back):
                         logger.error(f"SystemOpts has no attribute: {write_back}")
                     setattr_nested(self.opts, write_back, new_val)
                     logger.trace(f"Updated setting: {write_back}: {new_val}")
                 dialog.close()
+                self.__pubsub.publish(Settings(self.opts))
 
             with ui.row().classes("w-full justify-end mt-2"):
                 ui.button("Cancel", on_click=dialog.close).props("flat color=grey")

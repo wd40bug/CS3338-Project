@@ -39,7 +39,7 @@ class RttyWebGUI:
         # UI Elements
         self.__message_container: ui.column | None = None
         self.__input: ui.input | None = None
-        self.__settings: SettingsMenu = SettingsMenu(initial_settings)
+        self.__settings: SettingsMenu = SettingsMenu(initial_settings, self.__pubsub)
 
         # Bind PubSub events
         self.__pubsub.subscribe(Receiving, self.__on_receiving)
@@ -67,7 +67,6 @@ class RttyWebGUI:
                 ui.button(
                     "Quit", icon="power_settings_new", on_click=self.__action_quit
                 ).props("flat color=red")
-                ui.button("Debugging", icon="bug_report").props("flat color=orange")
 
         with ui.column().classes(
             "w-full max-w-5xl mx-auto h-[calc(100vh-80px)] p-4 no-wrap"
@@ -151,7 +150,10 @@ class RttyWebGUI:
         sent = isinstance(meta, SendMessage)
         act = "Sent" if sent else "Received"
         logger.info("MSG CLICKED")
-        with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
+        with (
+            ui.dialog() as dialog,
+            ui.card().classes(f"min-w-[400px] {"bg-green-500" if not sent else ""}"),
+        ):
             ui.label(f"{act} Message Details").classes("text-h5")
             ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
             if sent:
@@ -217,7 +219,8 @@ class RttyWebGUI:
             self.__pubsub.publish(Send(msg))
         else:
             self.__pubsub.publish(SendInternal.create(text_val, self.__settings.opts))
-            self.__resolve_sent_spinner()
+            spinner = self.__pending_send_spinners.pop()
+            spinner.set_visibility(False)
 
         self.__input.value = ""
 

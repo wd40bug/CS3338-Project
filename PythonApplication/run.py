@@ -19,7 +19,7 @@ logger.remove()
 logger.add(sys.stderr, level="TRACE", enqueue=True)
 logger.add("log.log", level="TRACE", mode="a", enqueue=True)
 
-opts = SystemOpts.default(source='microphone')
+opts = SystemOpts.default(source='internal')
 
 @ui.page("/")
 def index_page() -> None:

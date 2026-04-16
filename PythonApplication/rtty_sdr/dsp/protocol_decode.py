@@ -111,7 +111,7 @@ def protocol(
                 )
             return
         code = resp.code
-        if not validate_code(code):
+        if not validate_code(code, shift if shift is not None else opts.initial_shift):
             logger.warning(f"Invalid code: {code}, resetting")
             codes.clear()
             chars = ""

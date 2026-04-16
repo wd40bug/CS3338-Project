@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Literal
 
 from rtty_sdr.core.options import BaudotOptions, Shift
 
@@ -91,8 +91,13 @@ def validate_char(char: str, case_sensitive: bool = False) -> bool:
     """
     return get_mapped(char, case_sensitive) is not None
 
-def validate_code(code: int) -> bool:
-    return code in FIGS_Map_rev or code in LTRS_Map_rev or code in Shift
+def validate_code(code: int, shift: Shift | Literal["both"] = "both") -> bool:
+    if shift == "both":
+        return code in FIGS_Map_rev or code in LTRS_Map_rev or code in Shift
+    elif shift == Shift.LTRS:
+        return code in LTRS_Map_rev or code in Shift
+    else:
+        return code in FIGS_Map_rev or code in Shift
 
 
 @dataclass
