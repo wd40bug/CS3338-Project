@@ -1,7 +1,15 @@
-#include <LiquidCrystal.h>
 #include "ArduinoJson.h"
 
-LiquidCrystal lcd(14,27,26,25,33,32);
+unsigned long __last_beat_time = 0;
+const unsigned long HEARTBEAT_INTERVAL = 1000; // 1 seconds
+
+void pumpHeartbeat() {
+  unsigned long current_time = millis();
+  if (current_time - __last_beat_time >= HEARTBEAT_INTERVAL) {
+    Serial.println("BEAT:");
+    __last_beat_time = current_time;
+  }
+}
 
 class Transmitter{
   enum class LastBitState {None = 3, Zero = 0, One = 1};
@@ -66,16 +74,14 @@ String c;
 void setup() {
   Serial.begin(115200);
   Serial.setTimeout(50);
-  lcd.begin(16,2); 
   trans.begin();
+  Serial.println("DEBUG: Awake");
 }
 
 void loop() {
+  pumpHeartbeat();
   // Check if there is data waiting in the serial buffer
   if (Serial.available()) {
-    
-    lcd.clear();
-    lcd.print("Reading Stream");
 
     JsonDocument doc;
     
@@ -84,21 +90,58 @@ void loop() {
     DeserializationError err = deserializeJson(doc, Serial);
 
     if (err) {
-      lcd.clear();
-      lcd.print("JSON ERR");
+      Serial.println("ERROR: " + String(err.c_str()));
       // Read out and discard any garbage left in the buffer to prevent a loop lock
       while(Serial.available()) Serial.read(); 
       return;
     }
 
-    // Pass the populated document directly to your handling logic
-    Serial.println("REPLY: Message Received");
+    String errorMsg = "";
+
+    // Check Root Elements
+    if (!doc["options"].is<JsonObject>()) {
+      errorMsg = "Missing or invalid 'options' (must be an object).";
+    } 
+    else if (!doc["message"].is<JsonArray>()) {
+      errorMsg = "Missing or invalid 'message' (must be an array).";
+    } 
+    else {
+      // Check Nested Options
+      JsonObject opts = doc["options"];
+      
+      // Note: .is<float>() safely matches both floats and doubles.
+      // .is<long>() safely matches both ints and longs.
+      if (!opts["stop_bits"].is<float>()) {
+        errorMsg = "'options.stop_bits' missing or not a number.";
+      } 
+      else if (!opts["baud"].is<float>()) { 
+        errorMsg = "'options.baud' missing or not a number.";
+      } 
+      else if (!opts["mark"].is<long>()) {
+        errorMsg = "'options.mark' missing or not an integer.";
+      } 
+      else if (!opts["shift"].is<long>()) {
+        errorMsg = "'options.shift' missing or not an integer.";
+      } 
+      else if (!opts["pre_msg_stops"].is<long>()) {
+        errorMsg = "'options.pre_msg_stops' missing or not an integer.";
+      }
+    }
+
+    // Abort if any check failed
+    if (errorMsg != "") {
+      Serial.println("ERROR: " + errorMsg);
+      // Read out and discard any garbage left in the buffer to prevent a loop lock
+      while(Serial.available()) Serial.read(); 
+      return; 
+    }
+
+    // Pass the populated document directly to handling logic
     handlePayload(doc);
     Serial.println("DONE: Sent Message");    
   }
 }
 
-// Adjusted handling logic that takes the parsed document directly
 void handlePayload(JsonDocument& doc) {
   JsonObject options = doc["options"];
   float stopbits = options["stop_bits"];
@@ -123,11 +166,10 @@ void handlePayload(JsonDocument& doc) {
   Serial.println("DEBUG: Msg has len " + String(msgarr.size()));
   trans.start();
   for(int i = 0; i < msgarr.size(); i++){
-    Serial.print("TRACE: Sending char: ");
-    Serial.print(i);
-    Serial.print(" : ");
-    Serial.println(msgarr[i].as<int>());
-    trans.send_char(msgarr[i].as<int>());
+    pumpHeartbeat();
+    int code = msgarr[i].as<int>();
+    Serial.println("TRACE: Sending code" + String(code));
+    trans.send_char(code);
   }
   trans.stop();
 }
