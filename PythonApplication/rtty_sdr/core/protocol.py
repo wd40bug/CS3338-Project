@@ -3,8 +3,12 @@ from loguru import logger
 import msgspec
 from typing import Self
 
+from numpy.random.mtrand import random
+
+import copy
+
 from rtty_sdr.core.options import BaudotOptions
-from rtty_sdr.core.baudot import encode
+from rtty_sdr.core.baudot import decode, encode
 
 
 
@@ -33,20 +37,34 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
 
 
 class SendMessage(ProtocolMessage, frozen=True):
+    original_codes: list[int]
+    original_encoding: str
     @classmethod
-    def create(cls, msg: str, callsign: str, opts: BaudotOptions) -> Self:
+    def create(cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0) -> Self:
         length_str = f"{len(msg):02x}"
         pre_checksum, state = encode(length_str + msg, opts)
         checksum = calculate_checksum(pre_checksum)
-        checksum_str = f"{checksum:4x}".upper()
+        checksum_str = f"{checksum:04x}".upper()
         encoding = f"{length_str}{msg.upper()}{checksum_str}{callsign.upper()}"
         codes = pre_checksum + encode(checksum_str + callsign, opts, state)[0]
+        corrupted_codes: list[int] = []
+        for code in codes:
+            new_code = code
+            for bit_index in range(0, 5):
+                if random() < corruption:
+                    new_code ^= 1 << bit_index
+            corrupted_codes.append(new_code)
+        new_opts = copy.deepcopy(opts)
+        new_opts.replace_invalid_with = "�"
+        corrupted_encoding, _ = decode(corrupted_codes, new_opts, new_opts.initial_shift)
         return cls(
             msg=msg,
             callsign=callsign,
             checksum=checksum,
-            encoding=encoding,
-            codes=codes,
+            original_encoding=encoding,
+            encoding=corrupted_encoding,
+            original_codes=codes,
+            codes=corrupted_codes
         )
 
 class RecvMessage(ProtocolMessage, frozen=True):

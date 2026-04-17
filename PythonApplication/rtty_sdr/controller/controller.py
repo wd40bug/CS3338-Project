@@ -2,6 +2,7 @@ import queue
 import threading
 import time
 from typing import Literal
+from typing_extensions import Final
 
 from loguru import logger
 import msgspec
@@ -9,11 +10,13 @@ import serial
 
 from rtty_sdr.comms.messages import Send, Sent, Settings, Shutdown
 from rtty_sdr.comms.pubsub import PubSub
-from rtty_sdr.controller.espcom import ToESP
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import RTTYOpts, SystemOpts
 
 type ControllerCommand = Literal["stop", "refresh"]
 
+class ToESP(msgspec.Struct, frozen=True):
+    message: list[int]
+    options: RTTYOpts
 
 class ControllerModule(threading.Thread):
     def __init__(self, initial_settings: SystemOpts):
@@ -27,16 +30,14 @@ class ControllerModule(threading.Thread):
         self.__opts = initial_settings
         self.__esp: serial.Serial = serial.Serial(baudrate=115200, timeout=5)
         self.__encoder = msgspec.json.Encoder()
-        self.__port_change()
+        self.__attempt_connect()
 
-    def __port_change(self):
-        if self.__opts.port == self.__esp.port:
-            return
-        if self.__opts.port == "" and self.__esp.port is None:
-            return
-
+    def __attempt_connect(self):
         if self.__esp.is_open:
             self.__esp.close()
+
+        if not self.__opts.port or not self.__opts.port.strip():
+            return
 
         self.__esp.port = self.__opts.port
         try:
@@ -44,8 +45,9 @@ class ControllerModule(threading.Thread):
             time.sleep(0.05)
             self.__esp.reset_input_buffer()
             time.sleep(0.2)
+            logger.info(f"Successfully connected to ESP on {self.__opts.port}")
         except serial.SerialException:
-            logger.warning(f"Invalid port {self.__opts.port}, not opening")
+            logger.debug(f"Invalid port {self.__opts.port}, not opening")
             self.__esp.port = None
 
     def __on_send_message(self, msg: Send):
@@ -65,6 +67,8 @@ class ControllerModule(threading.Thread):
         self.__pubsub.run_receive()
         current_msg: ToESP | None = None
         needs_send: bool = False
+
+        RECONNECT_INTERVAL: Final[float] = 2.0
         try:
             while True:
                 if self.__esp.is_open:
@@ -73,21 +77,24 @@ class ControllerModule(threading.Thread):
                     except queue.Empty:
                         cmd = None
                 else:
-                    cmd = self.__commands_queue.get()
+                    try:
+                        cmd = self.__commands_queue.get(timeout=RECONNECT_INTERVAL)
+                    except queue.Empty:
+                        cmd = None
 
                 if cmd is not None:
                     if cmd == "refresh":
-                        self.__port_change()
+                        self.__attempt_connect()
                         self.__commands_queue.task_done()
-                        logger.debug(
-                            f"Refreshed esp, it is now {'open' if self.__esp.is_open else 'closed'}"
-                        )
                     else:
                         self.__commands_queue.task_done()
                         # Stop
                         break
 
                 if not self.__esp.is_open:
+                    # If no command was grabbed and the port is closed, attempt a reconnect
+                    if cmd is None:
+                        self.__attempt_connect()
                     continue
 
                 if current_msg is None:
@@ -114,8 +121,8 @@ class ControllerModule(threading.Thread):
                     raw_line: bytes = self.__esp.readline()
                 except serial.SerialException:
                     logger.warning("Serial read failed (device unplugged???)")
-                    self.__esp.close()
                     needs_send = True
+                    self.__esp.close()
                     continue
 
                 if not raw_line.endswith(b"\n"):
@@ -124,22 +131,23 @@ class ControllerModule(threading.Thread):
                     needs_send = True
                     continue
 
-                topic, _, content = raw_line.partition(b":")
-                topic_str = topic.decode(errors="ignore").strip()
-                content_str = content.decode(errors="ignore").strip()
-                match topic_str:
+                line = raw_line.decode(errors="ignore").strip()
+                topic, _, content = line.partition(":")
+                match topic:
                     case "DEBUG":
-                        logger.debug(f"From ESP {content_str}")
+                        logger.debug(f"From ESP {content}")
                     case "TRACE":
-                        logger.trace(f"From ESP {content_str}")
+                        logger.trace(f"From ESP {content}")
                     case "ERROR":
-                        logger.error(f"FROM ESP {content_str}")
+                        logger.error(f"FROM ESP {content}")
                     case "BEAT":
                         pass
                     case "DONE":
                         self.__pubsub.publish(Sent())
                         current_msg = None
                         self.__msgqueue.task_done()
+                    case _:
+                        logger.trace(f"Unexpected msg from ESP: {line}")
         finally:
             if self.__esp.is_open:
                 self.__esp.close()

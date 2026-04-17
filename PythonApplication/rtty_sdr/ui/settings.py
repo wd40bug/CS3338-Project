@@ -11,6 +11,7 @@ from typing import (
 from loguru import logger
 from nicegui.defaults import DEFAULT_PROP
 from nicegui.element import Element
+from nicegui.elements.checkbox import Checkbox
 from nicegui.elements.input import Input
 from nicegui.elements.mixins.validation_element import ValidationDict
 from nicegui.elements.number import Number
@@ -48,6 +49,10 @@ class Selection(SettingsCommon[Select], BaseModel):
     kind: Literal["select"] = "select"
 
 
+class CheckBox(SettingsCommon[Checkbox], BaseModel):
+    kind: Literal["checkbox"] = "checkbox"
+
+
 class Header(BaseModel):
     content: str
     kind: Literal["header"] = "header"
@@ -60,7 +65,8 @@ class Hidden(BaseModel):
 
 
 type SettingsRenders = Annotated[
-    NumberSetting | String | Selection | Header | Hidden, Field(discriminator="kind")
+    NumberSetting | String | Selection | CheckBox | Header | Hidden,
+    Field(discriminator="kind"),
 ]
 
 
@@ -102,6 +108,13 @@ class SettingsMenu:
             write_back="source",
         ),
         String(name="Port (empty for None)", write_back="port"),
+        CheckBox(name="Error correction", write_back="error_correction"),
+        NumberSetting(
+            min=0,
+            max=1,
+            name="Corruption Probability (out of 1)",
+            write_back="corruption",
+        ),
         Header(content="RTTY"),
         NumberSetting(name="Baud", min=10, max=200, write_back="rtty.baud"),
         NumberSetting(
@@ -249,6 +262,10 @@ class SettingsMenu:
                                 label=name,
                                 value=getattr_nested(self.opts, write_back),
                             ).classes("w-full mb-0")
+                        case CheckBox(name=name, write_back=write_back):
+                            renderable.input = ui.checkbox(
+                                name, value=getattr_nested(self.opts, write_back)
+                            ).classes("mb-0 w-full")
                         case Hidden(name=name, children=sub_items):
                             with ui.expansion(name).classes(
                                 "w-full border rounded mt-2"
@@ -270,7 +287,12 @@ class SettingsMenu:
                             isinstance(render, SettingsCommon)
                             and render.input is not None
                         ):
-                            proposed_changes[render.write_back] = render.input.value
+                            proposed_changes[render.write_back] = (
+                                render.input.value
+                                if not isinstance(render, NumberSetting)
+                                or not render.is_int
+                                else int(render.input.value)
+                            )
                     return proposed_changes
 
                 proposed_changes = gather_updates(self.render_list)
@@ -308,13 +330,13 @@ class SettingsMenu:
                     )
                     return
 
-                source = proposed_changes.get("source", getattr_nested(self.opts, "source"))
+                source = proposed_changes.get(
+                    "source", getattr_nested(self.opts, "source")
+                )
                 port = proposed_changes.get("port", getattr_nested(self.opts, "port"))
 
                 if source == "microphone" and port == "":
-                    ui.notify(
-                        f"Validation Error: Source=microphone requires a port"
-                    )
+                    ui.notify(f"Validation Error: Source=microphone requires a port")
                     return
 
                 for write_back, new_val in proposed_changes.items():

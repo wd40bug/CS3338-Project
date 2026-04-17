@@ -116,6 +116,8 @@ class SystemOpts(Struct):
     source: Literal["microphone", "internal"]
     callsign: str
     port: str | None
+    error_correction: bool
+    corruption: float
 
     @classmethod
     def default(
@@ -145,7 +147,9 @@ class SystemOpts(Struct):
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
-        port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0"
+        port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
+        error_correction: bool = False,
+        corruption: float = 0
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -193,5 +197,7 @@ class SystemOpts(Struct):
             engine=engine,
             source=source,
             callsign=callsign,
-            port=port
+            port=port,
+            error_correction=error_correction,
+            corruption=corruption
         )

@@ -216,6 +216,8 @@ def decode(
             ret += val
         elif shift == Shift.FIGS and (val := FIGS_Map_rev.get(code)):
             ret += val
+        elif opts.replace_invalid_with:
+            ret += opts.replace_invalid_with
         else:
             raise ValueError(f"Unknown code: {code}")
     return ret, shift

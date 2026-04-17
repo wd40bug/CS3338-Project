@@ -15,8 +15,8 @@ from rtty_sdr.dsp.DSP import DspModule
 from rtty_sdr.debug.debug_socket import DebugSocket
 from rtty_sdr.ui.GUI import RttyWebGUI, ui
 
-logger.remove()
-logger.add(sys.stderr, level="TRACE", enqueue=True)
+# logger.remove()
+# logger.add(sys.stderr, level="TRACE", enqueue=True)
 logger.add("log.log", level="TRACE", mode="a", enqueue=True)
 
 opts = SystemOpts.default(source='internal')

@@ -16,6 +16,7 @@ class Transmitter{
   LastBitState last_bit = LastBitState::None;
   
   void sendBit(bool bit, int duration){
+    pumpHeartbeat();
     if (bit != static_cast<int>(last_bit)){
       tone(SquareWaveOut, bit ? Mark : Space);
     }
@@ -32,8 +33,8 @@ class Transmitter{
   }
   public:
   Transmitter(){};
-  static const int SquareWaveOut = 15;
-  static const int Transmit = 4;
+  static const int SquareWaveOut = 4;
+  static const int Transmit = 15;
 
   //default values
   int Mark = 2125;

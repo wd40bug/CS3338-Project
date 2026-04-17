@@ -7,6 +7,7 @@ import loguru
 import collections
 from nicegui import ui, app
 from nicegui.elements.chat_message import ChatMessage
+from numpy import random
 
 from rtty_sdr.comms.messages import (
     LostSignal,
@@ -157,7 +158,7 @@ class RttyWebGUI:
             ui.label(f"{act} Message Details").classes("text-h5")
             ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
             if sent:
-                ui.label(f"Intended: {meta.encoding}")
+                ui.label(f"Intended: {meta.original_encoding}")
                 # TODO: Corruption
                 ui.label(f"Sent: {meta.encoding}")
             else:
@@ -168,7 +169,7 @@ class RttyWebGUI:
                     ui.label(f"Checksum Passed!")
                 else:
                     ui.label(
-                        f"Invalid Checksum! Calculated: {meta.calculatedChecksum:4X}"
+                        f"Invalid Checksum! Calculated: {meta.calculatedChecksum:04X}"
                     )
             ui.label(f"Codes: {meta.codes}")
             dialog.open()
@@ -192,6 +193,7 @@ class RttyWebGUI:
             text_val,
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
+            self.__settings.opts.corruption
         )
 
         if self.__message_container:
