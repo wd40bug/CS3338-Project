@@ -35,6 +35,17 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     codes: list[int]
     checksum: int
 
+def corrupt(codes: list[int], corruption: float) -> list[int]:
+    corrupted_codes: list[int] = []
+    for code in codes:
+        new_code = code
+        for bit_index in range(0, 5):
+            if random() < corruption:
+                new_code ^= 1 << bit_index
+        corrupted_codes.append(new_code)
+    return corrupted_codes
+
+
 
 class SendMessage(ProtocolMessage, frozen=True):
     original_codes: list[int]
@@ -47,15 +58,9 @@ class SendMessage(ProtocolMessage, frozen=True):
         checksum_str = f"{checksum:04x}".upper()
         encoding = f"{length_str}{msg.upper()}{checksum_str}{callsign.upper()}"
         codes = pre_checksum + encode(checksum_str + callsign, opts, state)[0]
-        corrupted_codes: list[int] = []
-        for code in codes:
-            new_code = code
-            for bit_index in range(0, 5):
-                if random() < corruption:
-                    new_code ^= 1 << bit_index
-            corrupted_codes.append(new_code)
         new_opts = copy.deepcopy(opts)
         new_opts.replace_invalid_with = "�"
+        corrupted_codes = corrupt(codes, corruption)
         corrupted_encoding, _ = decode(corrupted_codes, new_opts, new_opts.initial_shift)
         return cls(
             msg=msg,

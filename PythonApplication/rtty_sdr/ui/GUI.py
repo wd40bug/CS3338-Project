@@ -205,7 +205,7 @@ class RttyWebGUI:
                 self.__pending_send_spinners.append(spinner)
                 stamp = datetime.now()
                 ui.chat_message(
-                    text_val,
+                    msg.msg,
                     name="YOU",
                     sent=True,
                     text_html=False,
@@ -220,7 +220,7 @@ class RttyWebGUI:
         if self.__settings.opts.source == "microphone":
             self.__pubsub.publish(Send(msg))
         else:
-            self.__pubsub.publish(SendInternal.create(text_val, self.__settings.opts))
+            self.__pubsub.publish(SendInternal.create_with_msg(msg, self.__settings.opts.signal))
             spinner = self.__pending_send_spinners.pop()
             spinner.set_visibility(False)
 

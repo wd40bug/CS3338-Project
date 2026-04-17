@@ -3,7 +3,7 @@ from typing_extensions import get_args
 import msgspec
 from typing import ClassVar, Literal, Self
 
-from rtty_sdr.core.options import SystemOpts
+from rtty_sdr.core.options import SignalOpts, SystemOpts
 from rtty_sdr.core.protocol import RecvMessage, SendMessage
 import numpy as np
 import numpy.typing as npt
@@ -25,6 +25,11 @@ class SendInternal(msgspec.Struct, frozen=True):
     def create(cls, msg: str, opts: SystemOpts) -> Self:
         to_send = SendMessage.create(msg, opts.callsign, opts.baudot)
         signal, _, _ = internal_signal(to_send.codes, opts.signal)
+        return cls(signal=signal)
+
+    @classmethod
+    def create_with_msg(cls, msg: SendMessage, opts: SignalOpts) -> Self:
+        signal, _, _ = internal_signal(msg.codes, opts)
         return cls(signal=signal)
 
 
