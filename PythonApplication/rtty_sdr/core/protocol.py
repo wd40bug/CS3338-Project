@@ -10,7 +10,7 @@ import copy
 from rtty_sdr.core.options import BaudotOptions, Shift
 from rtty_sdr.core.baudot import decode, encode
 
-phrase: tuple[int, ... ] = (0x15, 0x0A, 0x15)
+phrase: list[int] = [0x15, 0x0A, 0x15]
 
 crc16_xmodem = crcmod.predefined.mkCrcFun("xmodem")
 
@@ -25,7 +25,6 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     Attributes:
         msg: actual message
         callsign: 
-        encoding: 
         codes: baudot codes as integers
         checksum: (may or may not be valid)
     """
@@ -33,6 +32,7 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     callsign: str
     codes: list[int]
     checksum: int
+    def __str__(self) -> str: return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum:04X})"
 
 def corrupt(codes: list[int], corruption: float) -> list[int]:
     corrupted_codes: list[int] = []
@@ -50,33 +50,46 @@ class SendMessage(ProtocolMessage, frozen=True):
     original_msg: str
     @classmethod
     def create(cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0) -> Self:
-        length_str = f"{len(msg):02X}"
+        def chunk_bits(num: int, numchunks: int) -> list[int]:
+            bits: list[int] = []
+            mask = 31
+            while num > 0:
+                bits.append(num & mask)
+                num >>= 5
+                
+            bits = bits[::-1]
+            
+            if len(bits) < numchunks:
+                for i in range(len(bits), numchunks):
+                    bits.append(0)
+            return bits
+    
+        length = len(msg)
 
-        len_encoding, pre_msg_shift = encode(length_str, opts)
-        msg_encoding, shift = encode(msg, opts, pre_msg_shift)
+        msg_encoding = encode(msg, opts)
 
-        checksum = calculate_checksum(len_encoding + msg_encoding)
-        checksum_str = f"{checksum:04X}"
-        checksum_encoding, shift = encode(checksum_str, opts, shift)
-        callsign_encoding, _ = encode(callsign, opts, shift)
+        checksum = calculate_checksum(msg_encoding)
 
-        encoding = f"{length_str}{msg}{checksum_str}{callsign}".upper()
-        codes = len_encoding + msg_encoding + checksum_encoding + callsign_encoding
+        lencodes = chunk_bits(length)
+
+        checkcodes = chunk_bits(checksum)
+
+        callsign_encoding, _ = encode(callsign, opts)
+
+        codes = phrase + [lencodes] * 3 + msg_encoding + [checkcodes] + callsign_encoding
 
         new_opts = copy.replace(opts, replace_invalid_with = "�")
-        corrupted_msg_encoding = corrupt(msg_encoding, corruption)
-        corrupted_msg, _ = decode(corrupted_msg_encoding, new_opts, pre_msg_shift)
+        corrupted_msg_encoding = corrupt(msg_encoding[3:7], corruption)
+
+        corrupted_msg, _ = decode(corrupted_msg_encoding, new_opts)
         corrupted_codes = copy.deepcopy(codes)
-        corrupted_codes[len(len_encoding):len(len_encoding) + len(corrupted_msg_encoding)] = corrupted_msg_encoding
-        corrupted_encoding = f"{length_str}{corrupted_msg}{checksum_str}{callsign}"
+        corrupted_codes[3:7] = corrupted_msg_encoding
 
         return cls(
             msg=corrupted_msg,
             original_msg=msg,
             callsign=callsign,
             checksum=checksum,
-            original_encoding=encoding,
-            encoding=corrupted_encoding,
             original_codes=codes,
             codes=corrupted_codes
         )
