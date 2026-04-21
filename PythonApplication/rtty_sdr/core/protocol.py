@@ -10,7 +10,7 @@ import copy
 from rtty_sdr.core.options import BaudotOptions, Shift
 from rtty_sdr.core.baudot import decode, encode
 
-
+phrase: tuple[int, ... ] = (0x15, 0x0A, 0x15)
 
 crc16_xmodem = crcmod.predefined.mkCrcFun("xmodem")
 
@@ -31,7 +31,6 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     """
     msg: str
     callsign: str
-    encoding: str
     codes: list[int]
     checksum: int
 

@@ -33,7 +33,6 @@ HexChars: Final[list[str]] = [
     "F",
 ]
 
-
 class ProtocolState(IntEnum):
     Length = auto()
     Data = auto()
@@ -64,6 +63,7 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
 class ProtocolDecode:
     def __init__(self, opts: BaudotOptions) -> None:
         self.__state: ProtocolState = ProtocolState.Length
+        self.__state2: ProtocolState2 = ProtocolState2.Phrase
         self.__codes: list[int] = []
         self.__chars = ""
         self.__opts = opts
@@ -80,6 +80,9 @@ class ProtocolDecode:
     @property
     def codes(self) -> list[int]:
         return self.__codes
+
+    def update2(self, code: int) -> None | RecvMessage:
+        ...
 
     def update(self, code: int) -> None | RecvMessage:
         if not validate_code(
