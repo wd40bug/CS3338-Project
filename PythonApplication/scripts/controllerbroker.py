@@ -1,3 +1,4 @@
+from crcmod.crcmod import sys
 from loguru import logger
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.core.protocol import SendMessage
@@ -18,7 +19,7 @@ logger.info(f"Second message: {msg2.encoding}")
 toesp1 = ToESP(msg1.codes, opts.rtty)
 toesp2 = ToESP(msg2.codes, opts.rtty)
 
-comms = EspComms()
+comms = EspComms("tty/USB0" if sys.platform == "linux" else "COM1")
 
 comms.send_receive(toesp1)
 comms.send_receive(toesp2)

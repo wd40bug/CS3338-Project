@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Literal
 
 from rtty_sdr.core.options import BaudotOptions, Shift
 
@@ -78,7 +78,6 @@ BOTH_Map: Final[dict[str, int]] = {
 }
 
 
-@staticmethod
 def validate_char(char: str, case_sensitive: bool = False) -> bool:
     """
     Return if the char is a valid Baudot character
@@ -91,6 +90,14 @@ def validate_char(char: str, case_sensitive: bool = False) -> bool:
 
     """
     return get_mapped(char, case_sensitive) is not None
+
+def validate_code(code: int, shift: Shift | Literal["both"] = "both") -> bool:
+    if shift == "both":
+        return code in FIGS_Map_rev or code in LTRS_Map_rev or code in Shift
+    elif shift == Shift.LTRS:
+        return code in LTRS_Map_rev or code in Shift
+    else:
+        return code in FIGS_Map_rev or code in Shift
 
 
 @dataclass
@@ -171,7 +178,7 @@ def encode(
     for mapped in mapped_values:
         # For None shift (either) just use previous shift
         if mapped.shift is not None and mapped.shift != shift:
-            ret.extend([mapped.shift, mapped.code])
+            ret.extend([int(mapped.shift), mapped.code])
             shift = mapped.shift
         else:
             ret.append(mapped.code)
@@ -209,6 +216,8 @@ def decode(
             ret += val
         elif shift == Shift.FIGS and (val := FIGS_Map_rev.get(code)):
             ret += val
+        elif opts.replace_invalid_with:
+            ret += opts.replace_invalid_with
         else:
             raise ValueError(f"Unknown code: {code}")
     return ret, shift

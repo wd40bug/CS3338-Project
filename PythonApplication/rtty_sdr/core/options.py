@@ -3,9 +3,10 @@ from enum import IntEnum
 from typing import Final, Literal, ClassVar, Self
 
 from msgspec import Struct
+import sys
 
 
-class RTTYOpts(Struct, frozen=True):
+class RTTYOpts(Struct):
     stop_bits: float
     baud: float
     mark: int
@@ -31,7 +32,7 @@ class RTTYOpts(Struct, frozen=True):
         return f"Mark: {self.mark}, Space: {self.space}, Baud: {self.baud}"
 
 
-class SignalOpts(Struct, frozen=True):
+class SignalOpts(Struct):
     Fs: int
     rtty: RTTYOpts
 
@@ -40,7 +41,7 @@ class SignalOpts(Struct, frozen=True):
         return round(self.Fs / self.rtty.baud)
 
 
-class DecodeCommon(Struct, frozen=True):
+class DecodeCommon(Struct):
     oversampling: int
     signal: SignalOpts
 
@@ -52,12 +53,12 @@ class Shift(IntEnum):
     LTRS = 31
     FIGS = 27
 
-class BaudotOptions(Struct, frozen=True):
+class BaudotOptions(Struct):
     initial_shift: Shift
     replace_invalid_with: str | None = None
 
 
-class GoertzelOpts(Struct, frozen=True):
+class GoertzelOpts(Struct):
     overlap_ratio: float
     dft_len: int
     decode: DecodeCommon
@@ -67,13 +68,13 @@ class GoertzelOpts(Struct, frozen=True):
         return round(self.decode.chunk_size * self.overlap_ratio)
 
 
-class EnvelopeOpts(Struct, frozen=True):
+class EnvelopeOpts(Struct):
     order: int
     envelopes_order: int
     decode: DecodeCommon
 
 
-class SquelchOpts(Struct, frozen=True):
+class SquelchOpts(Struct):
     lower_thresh: float
     upper_thresh: float
     order: int
@@ -82,7 +83,7 @@ class SquelchOpts(Struct, frozen=True):
     decode: DecodeCommon
 
 
-class DecodeStreamOpts(Struct, frozen=True):
+class DecodeStreamOpts(Struct):
     squelch_grace_percent: float
     idle_bits: float
     none_friction: float
@@ -97,7 +98,7 @@ class DecodeStreamOpts(Struct, frozen=True):
         return round(self.idle_bits * self.decode.chunk_size)
 
 
-class SystemOpts(Struct, frozen=True):
+class SystemOpts(Struct):
     # Stem configs
     rtty: RTTYOpts
     signal: SignalOpts
@@ -114,6 +115,9 @@ class SystemOpts(Struct, frozen=True):
     engine: Literal["goertzel", "envelope"]
     source: Literal["microphone", "internal"]
     callsign: str
+    port: str | None
+    error_correction: bool
+    corruption: float
 
     @classmethod
     def default(
@@ -122,7 +126,7 @@ class SystemOpts(Struct, frozen=True):
         baud: float = 45.45,
         mark: int = 2125,
         shift: int = 170,
-        pre_msg_stops: int = 1,
+        pre_msg_stops: int = 5,
         post_msg_stops: int = 1,
         Fs: int = 8000,
         oversampling: int = 5,
@@ -143,6 +147,9 @@ class SystemOpts(Struct, frozen=True):
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
+        port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
+        error_correction: bool = False,
+        corruption: float = 0
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -190,4 +197,7 @@ class SystemOpts(Struct, frozen=True):
             engine=engine,
             source=source,
             callsign=callsign,
+            port=port,
+            error_correction=error_correction,
+            corruption=corruption
         )
