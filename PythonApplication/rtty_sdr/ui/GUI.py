@@ -3,15 +3,13 @@ from datetime import datetime
 from typing import Literal, cast
 from typing import Deque, Final, Optional
 from loguru import logger
-import loguru
 import collections
 from nicegui import ui, app
 from nicegui.elements.chat_message import ChatMessage
-from numpy import random
 
 from rtty_sdr.comms.messages import (
+    FinalMessage,
     LostSignal,
-    ReceivedMessage,
     Receiving,
     Send,
     Shutdown,
@@ -45,7 +43,7 @@ class RttyWebGUI:
         # Bind PubSub events
         self.__pubsub.subscribe(Receiving, self.__on_receiving)
         self.__pubsub.subscribe(LostSignal, self.__on_signal_lost)
-        self.__pubsub.subscribe(ReceivedMessage, self.__on_receive)
+        self.__pubsub.subscribe(FinalMessage, self.__on_receive)
         self.__pubsub.subscribe(Shutdown, self.__on_shutdown)
         self.__pubsub.subscribe(Sent, self.__on_sent)
 
@@ -122,7 +120,7 @@ class RttyWebGUI:
             self.__active_recv_indicator.delete()
             self.__active_recv_indicator = None
 
-    def __on_receive(self, msg: ReceivedMessage) -> None:
+    def __on_receive(self, msg: FinalMessage) -> None:
         assert self.__loop is not None
         self.__loop.call_soon_threadsafe(self.__render_received_message, msg.msg)
 
@@ -165,11 +163,11 @@ class RttyWebGUI:
                 assert isinstance(meta, RecvMessage)
                 ui.label(f"Received: {meta.encoding}")
                 ui.label(f"Corrected: {meta.encoding}")
-                if meta.validChecksum:
+                if meta.valid_checksum:
                     ui.label(f"Checksum Passed!")
                 else:
                     ui.label(
-                        f"Invalid Checksum! Calculated: {meta.calculatedChecksum:04X}"
+                        f"Invalid Checksum! Calculated: {meta.calculated_checksum:04X}"
                     )
             ui.label(f"Codes: {meta.codes}")
             dialog.open()

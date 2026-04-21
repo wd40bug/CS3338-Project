@@ -1,7 +1,7 @@
 import queue
 
 from loguru import logger
-from rtty_sdr.core.protocol import RecvMessage, Send
+from rtty_sdr.core.protocol import RecvMessage, SendMessage
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.squelch import plot_shaded_squelch
 from rtty_sdr.debug.state_changes import graph_states
@@ -24,7 +24,7 @@ import sys
 opts = SystemOpts.default()
 message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
-send_message = Send.create(message, "KJ5OEH", opts.baudot)
+send_message = SendMessage.create(message, "KJ5OEH", opts.baudot)
 logger.info(f"Sending: {send_message.encoding}")
 encoded = send_message.codes
 signal, t, annotations = internal_signal(encoded, opts.signal, 0.05)
@@ -35,8 +35,8 @@ pill_queue: CommandsQueueQueue = queue.Queue()
 pills = CommandsQueue(pill_queue)
 signal_source = MockSignalSource(signal, opts.decode, None, pill_queue)
 
-# engine = GoertzelEngine(GoertzelOpts(0.5, 256, decode))
-engine = EnvelopeEngine(opts.envelope)
+engine = GoertzelEngine(opts.goertzel)
+# engine = EnvelopeEngine(opts.envelope)
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])

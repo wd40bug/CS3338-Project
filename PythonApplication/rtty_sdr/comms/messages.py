@@ -45,6 +45,10 @@ class ReceivedMessage(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.received"]] = "dsp.received"
     msg: RecvMessage
 
+class FinalMessage(msgspec.Struct, frozen=True):
+    topic: ClassVar[Literal["errcorr.final"]] = "errcorr.final"
+    msg: RecvMessage
+
 
 class DebugMessage(msgspec.Struct, frozen=True):
     topic: ClassVar[Literal["dsp.debug"]] = "dsp.debug"
@@ -71,6 +75,7 @@ type AnyMessage = (
     | Receiving
     | LostSignal
     | ReceivedMessage
+    | FinalMessage
     | SendInternal
     | Shutdown
     | Settings

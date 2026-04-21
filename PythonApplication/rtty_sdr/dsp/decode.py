@@ -45,6 +45,7 @@ class DecodeState(IntEnum):
     DATA = auto()
     STOP = auto()
 
+
 def decode_stream(
     source: AudioSource,
     squelch: Squelch,
@@ -147,6 +148,7 @@ class DecodeDebug(DebugCombineable):
     squelch: npt.NDArray[np.int_]
     annotations: DebugAnnotations
     states: list[DecodeState]
+    len: int
 
     @classmethod
     def combine(cls, debugs: Iterable[DecodeDebug]) -> DecodeDebug:
@@ -161,6 +163,7 @@ class DecodeDebug(DebugCombineable):
                 np.array([]),
                 DebugAnnotations(np.array([]), np.array([]), np.array([])),
                 [],
+                0,
             )
 
         # Concat the arrays
@@ -171,6 +174,7 @@ class DecodeDebug(DebugCombineable):
             squelch=np.concatenate([d.squelch for d in debug_list]),
             annotations=DebugAnnotations.combine([d.annotations for d in debug_list]),
             states=[state for d in debugs for state in d.states],
+            len=sum([d.len for d in debug_list]),
         )
 
 
@@ -273,6 +277,7 @@ class DecodeDebugBuilder:
                 np.array(self.__data_bits),
             ),
             self.__state_changes.build(i + self.__frame_index, state),
+            len(signal_arr)
         )
         assert (
             len(ret.indices)

@@ -19,6 +19,8 @@ class StateChanges[T]:
         self.__state_changes[index] = state
 
     def build(self, index: int, default: T) -> list[T]:
+        if index == 0:
+            return []
         first_state = self.__state_changes[self.__first]
         assert first_state is not None
 

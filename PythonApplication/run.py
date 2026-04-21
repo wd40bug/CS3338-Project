@@ -13,10 +13,11 @@ from rtty_sdr.controller.controller import ControllerModule
 from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.DSP import DspModule
 from rtty_sdr.debug.debug_socket import DebugSocket
+from rtty_sdr.machine_learning.error_correction import ErrorCorrection
 from rtty_sdr.ui.GUI import RttyWebGUI, ui
 
-# logger.remove()
-# logger.add(sys.stderr, level="TRACE", enqueue=True)
+logger.remove()
+logger.add(sys.stderr, level="TRACE", enqueue=True)
 logger.add("log.log", level="TRACE", mode="a", enqueue=True)
 
 opts = SystemOpts.default(source='internal')
@@ -30,26 +31,18 @@ if __name__ == "__main__":
     # openSUSE handles standard fork() well.
     mp.set_start_method("spawn", force=True)
 
-    no_radio: Final = int(os.getenv("NO_RADIO", 0))
-
-    if no_radio not in [0,1]:
-        logger.error(f"Unknown NO_RADIO value: {no_radio}, should only be 0 or 1")
-        sys.exit(1)
-
     broker = BrokerModule()
     debug_socket = DebugSocket()
     dsp = DspModule(opts)
-    if no_radio == 0:
-        controller = ControllerModule(opts)
-    else:
-        controller = None
+    error_correction = ErrorCorrection(opts)
+    controller = ControllerModule(opts)
 
     broker.start()
     time.sleep(0.2)
     debug_socket.start()
-    if controller is not None:
-        controller.start()
+    controller.start()
     dsp.start()
+    error_correction.start()
     time.sleep(1)
 
     retcode = ui.run(reload=False, title="RTTY Chat", dark=False, port=8080)
@@ -59,8 +52,8 @@ if __name__ == "__main__":
 
     debug_socket.join()
     dsp.join()
-    if controller is not None:
-        controller.join()
+    error_correction.join()
+    controller.join()
     broker.stop()
 
     # breakpoint()
