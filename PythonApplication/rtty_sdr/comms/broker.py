@@ -4,9 +4,9 @@ import threading
 from typing import Final, Optional
 
 
-BROKER_FRONTEND: Final[str] = "ipc:///tmp/app_frontend.ipc"
-BROKER_BACKEND: Final[str] = "ipc:///tmp/app_backend.ipc"
-DEBUG_SOCKET: Final[str] = "ipc:///tmp/app_backend_debug.ipc"
+BROKER_FRONTEND: Final[str] = "tcp://127.128.1.1:5555"
+BROKER_BACKEND: Final[str] = "tcp://127.128.1.1:5556"
+DEBUG_SOCKET: Final[str] = "tcp://127.128.1.1:5557"
 
 
 class BrokerModule(threading.Thread):

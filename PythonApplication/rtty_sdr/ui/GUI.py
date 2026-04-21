@@ -154,7 +154,7 @@ class RttyWebGUI:
             ui.card().classes(f"min-w-[400px] {"bg-green-500" if not sent else ""}"),
         ):
             ui.label(f"{act} Message Details").classes("text-h5")
-            ui.label(f"{act} on {stamp.strftime('%-m/%-d/%Y %I:%M%p')}")
+            ui.label(f"{act} on {stamp.strftime('%m/%d/%Y %I:%M%p')}")
             if sent:
                 ui.label(f"Intended: {meta.original_encoding}")
                 # TODO: Corruption

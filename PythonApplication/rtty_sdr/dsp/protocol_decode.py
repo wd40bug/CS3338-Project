@@ -200,11 +200,12 @@ def protocol(
             if len(protocol.codes) == 1 and status_callback:
                 status_callback("signal")
             if msg is not None:
-                protocol.reset()
+                logger.debug(f"Decoded message: {msg}")
                 yield (
                     msg,
                     ProtocolDebug.create(debugs, states.build(index, protocol.state)),
                 )
+                protocol.reset()
                 debugs.clear()
         except ValueError as e:
             logger.warning(f"{e}: Resetting protocol")

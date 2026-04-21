@@ -54,7 +54,7 @@ class SendMessage(ProtocolMessage, frozen=True):
         length_str = f"{len(msg):02X}"
 
         len_encoding, pre_msg_shift = encode(length_str, opts)
-        msg_encoding, shift = encode(length_str, opts, pre_msg_shift)
+        msg_encoding, shift = encode(msg, opts, pre_msg_shift)
 
         checksum = calculate_checksum(len_encoding + msg_encoding)
         checksum_str = f"{checksum:04X}"

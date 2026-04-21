@@ -51,8 +51,10 @@ class ErrorCorrection(multiprocessing.Process):
             try:
                 # Mostly just extracting the message and writing back the corrected one
                 msg = msg_queue.get(timeout=0.1)
-                if msg.valid_checksum:
+                logger.debug(f"Processing message: {msg}")
+                if msg.valid_checksum or not self.__opts.error_correction:
                     self.__pubsub.publish(FinalMessage(msg))
+                    continue
                 msg_codes = msg.codes[
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ]
@@ -61,7 +63,8 @@ class ErrorCorrection(multiprocessing.Process):
                 corrected_codes[
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ] = recovered_codes
-                corrected_msg, _ = decode(recovered_codes, self.__opts.baudot, msg.msg_start_shift)
+                decode_baudot_opts = replace(self.__opts.baudot, replace_invalid_with="�")
+                corrected_msg, _ = decode(recovered_codes, decode_baudot_opts, msg.msg_start_shift)
                 corrected_encoding = list(msg.encoding)
                 corrected_encoding[LengthLen : LengthLen + len(msg.msg)] = corrected_msg
                 corrected_encoding = "".join(corrected_encoding)
