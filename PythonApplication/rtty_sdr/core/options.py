@@ -142,7 +142,7 @@ class SystemOpts(Struct):
         squelch_grace_percent: float = 0.25,
         idle_bits: float = 2,
         none_friction: float = 0.1,
-        initial_shift: Shift = Shift.FIGS,
+        initial_shift: Shift = Shift.LTRS,
         replace_invalid_with: str | None = None,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",

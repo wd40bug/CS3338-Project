@@ -1,41 +1,23 @@
+from collections import Counter
 from typing import Literal, Self
 from enum import IntEnum, auto
-from typing import Callable, Final
+from typing import Callable
 from loguru import logger
 import msgspec
 from typing_extensions import Iterable, Iterator
 from rtty_sdr.core.baudot import decode, validate_code
-from rtty_sdr.core.options import BaudotOptions, Shift
-from rtty_sdr.core.protocol import RecvMessage
+from rtty_sdr.core.options import BaudotOptions, RTTYOpts, Shift
+from rtty_sdr.core.protocol import CallsignLen, ChecksumLen, LengthDuplicates, LengthLen, RecvMessage
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.commands import Command
 from rtty_sdr.dsp.decode import DecodeDebug, DecodeYield
-
-LengthLen: Final[int] = 2
-ChecksumLen: Final[int] = 4
-CallsignLen: Final[int] = 6
-HexChars: Final[list[str]] = [
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-]
+from rtty_sdr.core.protocol import phrase
+from itertools import batched
 
 class ProtocolState(IntEnum):
+    Phrase = auto()
     Length = auto()
-    Data = auto()
+    Message = auto()
     Checksum = auto()
     Callsign = auto()
 
@@ -62,16 +44,14 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
 
 class ProtocolDecode:
     def __init__(self, opts: BaudotOptions) -> None:
-        self.__state: ProtocolState = ProtocolState.Length
-        self.__state2: ProtocolState2 = ProtocolState2.Phrase
+        self.__state: ProtocolState = ProtocolState.Phrase
         self.__codes: list[int] = []
-        self.__chars = ""
+        self.__msg: str = ""
+        self.__callsign: str = ""
         self.__opts = opts
         self.__shift: Shift | None = None
         self.__msg_len: int = 0
-        self.__checksum: str = ""
-        self.__msg_start_idx: int = 0
-        self.__msg_start_shift: Shift = opts.initial_shift
+        self.__checksum: int = 0
 
     @property
     def state(self) -> ProtocolState:
@@ -81,84 +61,104 @@ class ProtocolDecode:
     def codes(self) -> list[int]:
         return self.__codes
 
-    def update2(self, code: int) -> None | RecvMessage:
-        ...
+    @staticmethod
+    def pack_bits(values: Iterable[int]) -> int:
+        values_list = list(values)
+        packed_value = 0
+        for i, val in enumerate(values_list):
+            assert val >= 0 and val < 2**RTTYOpts.data_bits
+            shift_amount: int = (len(values_list) - 1 - i) * RTTYOpts.data_bits
+            packed_value |= val << shift_amount
+
+        return packed_value
 
     def update(self, code: int) -> None | RecvMessage:
-        if not validate_code(
-            code,
-            self.__shift if self.__shift is not None else self.__opts.initial_shift,
-        ):
-            raise ValueError(f"Invalid code: {code}")
-
         self.__codes.append(code)
-        char, self.__shift = decode(code, self.__opts, self.__shift)
-        self.__chars += char
-        if char == "":
-            # Shift character
-            return
 
         match self.__state:
+            case ProtocolState.Phrase:
+                if len(self.__codes) == len(phrase):
+                    if self.__codes == list(phrase):
+                        self.__state = ProtocolState.Length
+                    else:
+                        raise ValueError(
+                            f"Did not encounter code phrase ({phrase}). Encountered {self.__codes}"
+                        )
             case ProtocolState.Length:
-                if not char in HexChars:
-                    raise ValueError(
-                        f"Encountered non-numeric character '{char}' when parsing length field, restarting"
+                if len(self.__codes) == (LengthLen * LengthDuplicates) + len(phrase):
+                    counts = Counter(
+                        map(
+                            self.pack_bits,
+                            batched(self.__codes[len(phrase) :], LengthLen),
+                        )
                     )
-                if len(self.__chars) == LengthLen:
-                    self.__msg_len = int(self.__chars, 16)
-                    self.__state = (
-                        ProtocolState.Data
-                        if self.__msg_len != 0
-                        else ProtocolState.Checksum
-                    )
-                    # TODO: move this to checksum field
-                    self.__checksum_start_index = len(self.__codes)
-                    self.__msg_start_idx = len(self.__codes)
-                    self.__msg_start_shift = self.__shift
-            case ProtocolState.Data:
-                if len(self.__chars) == LengthLen + self.__msg_len:
+                    length, count = counts.most_common(1)[0]
+                    if count > LengthDuplicates // 2:
+                        self.__msg_len = length
+                        logger.trace(f"Receiving message of length {length}")
+                        if length > 0:
+                            self.__state = ProtocolState.Message
+                        else:
+                            self.__state = ProtocolState.Checksum
+                    else:
+                        raise ValueError(
+                            f"Failed to get majority for length of {length}. Counts: {counts}"
+                        )
+            case ProtocolState.Message:
+                if not validate_code(
+                    code,
+                    self.__shift
+                    if self.__shift is not None
+                    else self.__opts.initial_shift,
+                ):
+                    raise ValueError(f"Invalid code: {code}")
+                char, self.__shift = decode(code, self.__opts, self.__shift)
+                self.__msg += char
+
+                if len(self.__codes) == self.__msg_len + (
+                    LengthLen * LengthDuplicates
+                ) + len(phrase):
+                    logger.trace(f"Receiving message with msg '{self.__msg}'")
                     self.__state = ProtocolState.Checksum
-                    self.__checksum_start_index = len(self.__codes)
+                    self.__shift = None
             case ProtocolState.Checksum:
-                if not char in HexChars:
-                    raise ValueError(
-                        f"Encountered non-numeric character '{char}' when parsing checksum field, restarting"
-                    )
-                if len(self.__chars) == LengthLen + self.__msg_len + ChecksumLen:
-                    self.__checksum = self.__chars[
-                        LengthLen + self.__msg_len : LengthLen
-                        + self.__msg_len
-                        + ChecksumLen
-                    ]
+                if (
+                    len(self.__codes)
+                    == len(phrase)
+                    + (LengthLen * LengthDuplicates)
+                    + self.__msg_len
+                    + ChecksumLen
+                ):
+                    self.__checksum = self.pack_bits(self.__codes[-ChecksumLen:])
+                    logger.trace(f"Receiving message with checksum codes: {self.__codes[-ChecksumLen:]} -> {self.__checksum}")
                     self.__state = ProtocolState.Callsign
             case ProtocolState.Callsign:
-                if (
-                    len(self.__chars)
-                    == LengthLen + self.__msg_len + ChecksumLen + CallsignLen
+                if not validate_code(
+                    code,
+                    self.__shift
+                    if self.__shift is not None
+                    else self.__opts.initial_shift,
                 ):
-                    msg = self.__chars[LengthLen : LengthLen + self.__msg_len]
-                    callsign = self.__chars[LengthLen + self.__msg_len + ChecksumLen :]
-                    self.__state = ProtocolState.Length
+                    raise ValueError(f"Invalid code: {code}")
+                char, self.__shift = decode(code, self.__opts, self.__shift)
+                self.__callsign += char
+                if len(self.__callsign) == CallsignLen:
                     return RecvMessage.create(
-                        msg,
-                        callsign,
-                        self.__chars,
+                        self.__msg,
+                        self.__callsign.strip(" "),
                         self.__codes,
-                        self.__msg_start_idx,
-                        self.__msg_start_shift,
-                        self.__checksum_start_index,
+                        self.__msg_len,
                         self.__checksum,
                     )
 
     def reset(self) -> None:
         self.__codes.clear()
-        self.__chars = ""
         self.__state = ProtocolState.Length
         self.__shift = None
         self.__msg_len = 0
-        self.__checksum = ""
-        self.__msg_start_idx = 0
-        self.__msg_start_shift = self.__opts.initial_shift
+        self.__checksum = 0
+        self.__msg = ""
+        self.__callsign = ""
 
 
 class StoppedMsg(msgspec.Struct, frozen=True):
@@ -200,6 +200,7 @@ def protocol(
         code = resp.code
         try:
             msg = protocol.update(code)
+            states.change(index, protocol.state)
             if len(protocol.codes) == 1 and status_callback:
                 status_callback("signal")
             if msg is not None:

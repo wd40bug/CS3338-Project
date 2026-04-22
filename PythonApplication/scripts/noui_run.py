@@ -30,7 +30,7 @@ logger.add(sys.stderr, enqueue=True, level="TRACE")
 
 if __name__ == "__main__":
     settings = SystemOpts.default(
-        source="microphone", engine="goertzel", pre_msg_stops=10
+        source="internal", engine="goertzel", pre_msg_stops=10
     )
 
     mp.set_start_method("spawn", force=True)
