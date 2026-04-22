@@ -143,13 +143,14 @@ class SystemOpts(Struct):
         idle_bits: float = 2,
         none_friction: float = 0.1,
         initial_shift: Shift = Shift.LTRS,
+        rerun: bool = False,
         replace_invalid_with: str | None = None,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
         port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
-        error_correction: bool = False,
-        corruption: float = 0
+        error_correction: bool = True,
+        corruption: float = 0.05
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,

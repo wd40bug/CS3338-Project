@@ -70,7 +70,6 @@ pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
 Pygments==2.20.0
-PyGObject==3.56.2
 pyhtmlgui==3.22
 pyparsing==3.3.2
 Pypubsub==4.0.7
@@ -97,14 +96,15 @@ QtPy==2.4.3
 rich==14.3.3
 ruff==0.15.7
 scipy==1.17.1
-setuptools==82.0.1
 shiboken2==5.13.2
 shiboken6==6.11.0
 simple-websocket==1.1.0
 six==1.17.0
 sounddevice==0.5.5
+sru==2.6.0
 starlette==1.0.0
 textual==8.2.3
+torch==2.11.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uc-micro-py==2.0.0
