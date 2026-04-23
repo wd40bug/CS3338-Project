@@ -190,7 +190,7 @@ def protocol(
             continue
         elif resp.kind == "command":
             if status_callback:
-                # All commands kill this pipeline, so the message is lost
+                # All commands kill this pipeline, so the current message is lost
                 status_callback("signal_lost")
             yield (
                 StoppedMsg(cmd=resp.command),
@@ -213,6 +213,8 @@ def protocol(
                 debugs.clear()
         except ValueError as e:
             logger.warning(f"{e}: Resetting protocol")
+            if status_callback:
+                status_callback("signal_lost")
             protocol.reset()
             states.change(index, protocol.state)
 

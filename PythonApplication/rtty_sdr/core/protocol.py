@@ -12,7 +12,7 @@ from rtty_sdr.core.baudot import decode, encode
 
 phrase: list[int] = [0x15, 0x0A, 0x15]
 LengthLen: Final[int] = 2
-LengthDuplicates: Final[int] = 3
+LengthDuplicates: Final[int] = 5
 ChecksumLen: Final[int] = 4
 CallsignLen: Final[int] = 6
 
@@ -125,6 +125,8 @@ class RecvMessage(ProtocolMessage, frozen=True):
     calculated_checksum: int
     valid_checksum: bool
 
+    received_codes: None | list[int]
+
     msg_start_idx: int
     msg_codes_len: int
 
@@ -136,6 +138,7 @@ class RecvMessage(ProtocolMessage, frozen=True):
         codes: list[int],
         msg_codes_len: int,
         checksum: int,
+        received_codes: None | list[int] = None
     ) -> Self:
         msg_start_idx = len(phrase) + (LengthLen * LengthDuplicates)
         checksum_start_idx = msg_start_idx + msg_codes_len
@@ -152,4 +155,5 @@ class RecvMessage(ProtocolMessage, frozen=True):
             valid_checksum=calculatedChecksum == checksum,
             msg_start_idx=msg_start_idx,
             msg_codes_len=msg_codes_len,
+            received_codes=received_codes
         )

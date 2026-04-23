@@ -1,15 +1,14 @@
-from copy import deepcopy, replace
+from copy import replace
 import multiprocessing
 import queue
 import threading
 
 from loguru import logger
-import msgspec
 
 from rtty_sdr.comms.messages import FinalMessage, ReceivedMessage, Settings, Shutdown
 from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.baudot import decode
-from rtty_sdr.core.options import BaudotOptions, Shift, SystemOpts
+from rtty_sdr.core.options import Shift, SystemOpts
 from rtty_sdr.core.protocol import RecvMessage
 from rtty_sdr.dsp.protocol_decode import LengthLen
 
@@ -58,26 +57,21 @@ class ErrorCorrection(multiprocessing.Process):
                 msg_codes = msg.codes[
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ]
-                recovered_codes = error_correction(msg_codes, msg.msg_start_shift)
+                recovered_codes = error_correction(msg_codes, self.__opts.baudot.initial_shift)
                 corrected_codes = msg.codes
                 corrected_codes[
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ] = recovered_codes
                 decode_baudot_opts = replace(self.__opts.baudot, replace_invalid_with="�")
-                corrected_msg, _ = decode(recovered_codes, decode_baudot_opts, msg.msg_start_shift)
-                corrected_encoding = list(msg.encoding)
-                corrected_encoding[LengthLen : LengthLen + len(msg.msg)] = corrected_msg
-                corrected_encoding = "".join(corrected_encoding)
+                corrected_msg, _ = decode(recovered_codes, decode_baudot_opts)
 
                 corrected = RecvMessage.create(
                     corrected_msg,
                     msg.callsign,
-                    corrected_encoding,
                     corrected_codes,
-                    msg.msg_start_idx,
-                    msg.msg_start_shift,
-                    msg.msg_start_idx + msg.msg_codes_len,
-                    str(msg.checksum),
+                    msg.msg_codes_len,
+                    msg.checksum,
+                    received_codes=msg.codes
                 )
                 self.__pubsub.publish(FinalMessage(corrected))
             except queue.Empty:
