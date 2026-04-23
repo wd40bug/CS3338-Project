@@ -151,7 +151,7 @@ class DecodeDebug(DebugCombineable):
     len: int
 
     @classmethod
-    def combine(cls, debugs: Iterable[DecodeDebug]) -> DecodeDebug:
+    def combine(cls, debugs: Iterable["DecodeDebug"]) -> "DecodeDebug":
         debug_list = list(debugs)
 
         if not debug_list:
@@ -187,7 +187,7 @@ class StreamData:
     def __len__(self) -> int:
         return len(self.signal)
 
-    def __getitem__(self, key: slice | int) -> StreamData:
+    def __getitem__(self, key: slice | int) -> "StreamData":
         return StreamData(self.signal[key], self.envelope[key], self.squelch[key])
 
 
