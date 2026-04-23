@@ -17,7 +17,6 @@ from rtty_sdr.machine_learning.model import SRUModel
 import torch
 
 
-
 LTRS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T",
         "U","V","W","X","Y","Z","\r"," ","\n", "FIGS", "LTRS", "<PAD>", "<MASK>"] # LTRS for RTTY transmission
 
@@ -65,7 +64,6 @@ def tokens_to_codes_with_shift(pred_tokens, inv_tokenizer, initial_shift):
         if char in {"<PAD>", "<MASK>", None}:
             continue
 
-        # --- DROP-IN FIX START ---
         if char == "LTRS":
             if shift != Shift.LTRS:
                 shift = Shift.LTRS
@@ -77,7 +75,6 @@ def tokens_to_codes_with_shift(pred_tokens, inv_tokenizer, initial_shift):
                 shift = Shift.FIGS
                 codes.append(int(Shift.FIGS))
             continue
-        # --- DROP-IN FIX END ---
 
         # Map character to code
         if shift == Shift.LTRS:
@@ -214,7 +211,7 @@ class ErrorCorrection(multiprocessing.Process):
                     msg_codes,
                     self.model,
                     msg.msg_start_shift,
-                    debug=True   # toggle this on/off
+                    debug=True   # toggle
                 )
 
                 target_len = msg.msg_codes_len
