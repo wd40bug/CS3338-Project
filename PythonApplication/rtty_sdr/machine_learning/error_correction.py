@@ -17,6 +17,7 @@ from rtty_sdr.machine_learning.model import SRUModel
 import torch
 
 
+
 LTRS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T",
         "U","V","W","X","Y","Z","\r"," ","\n", "FIGS", "LTRS", "<PAD>", "<MASK>"] # LTRS for RTTY transmission
 
