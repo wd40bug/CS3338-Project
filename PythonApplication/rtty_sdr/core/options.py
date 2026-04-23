@@ -14,8 +14,8 @@ class RTTYOpts(Struct):
     pre_msg_stops: int
     post_msg_stops: int
 
-    data_bits: ClassVar[Final[int]] = 5
-
+    data_bits: Final[int] = 5
+    
     @property
     def space(self):
         return self.mark + self.shift
@@ -143,7 +143,6 @@ class SystemOpts(Struct):
         idle_bits: float = 2,
         none_friction: float = 0.1,
         initial_shift: Shift = Shift.LTRS,
-        rerun: bool = False,
         replace_invalid_with: str | None = None,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",

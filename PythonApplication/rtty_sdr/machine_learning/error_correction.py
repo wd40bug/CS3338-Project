@@ -1,8 +1,9 @@
-from copy import deepcopy, replace
+from copy import deepcopy
+from dataclasses import replace
 import multiprocessing
 import queue
 import threading
-
+import os
 from loguru import logger
 import msgspec
 
@@ -12,7 +13,7 @@ from rtty_sdr.core.baudot import decode, LTRS_Map, FIGS_Map, Shift, LTRS_Map_rev
 from rtty_sdr.core.options import BaudotOptions, Shift, SystemOpts
 from rtty_sdr.core.protocol import RecvMessage
 from rtty_sdr.dsp.protocol_decode import LengthLen
-from model import SRUModel
+from rtty_sdr.machine_learning.model import SRUModel
 import torch
 
 
@@ -80,8 +81,12 @@ def tokens_to_codes_with_shift(pred_tokens, inv_tokenizer, initial_shift):
         # Map character to code
         if shift == Shift.LTRS:
             code = LTRS_Map.get(char)
+            if code is None:
+                code = FIGS_Map.get(char)  # fallback
         else:
             code = FIGS_Map.get(char)
+            if code is None:
+                code = LTRS_Map.get(char)  # fallback
 
         if code is not None:
             codes.append(code)
@@ -112,16 +117,16 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
 
     return tokens
 
-def error_correction(in_codes, model, initial_shift):
+def error_correction(in_codes, model, initial_shift, debug=False):
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
     inv_tokenizer = {i: c for c, i in tokenizer.items()}
 
     tokens = codes_to_tokens_with_shift(in_codes, tokenizer, initial_shift)
-    tokens = pad_tokens(tokens)
+    padded_tokens = pad_tokens(tokens)
 
     pred_tokens = run_inference(
         model=model,
-        tokens=torch.tensor(tokens).unsqueeze(0),
+        tokens=torch.tensor(padded_tokens).unsqueeze(0),
         PAD_TOKEN=tokenizer["<PAD>"]
     )
 
@@ -131,8 +136,17 @@ def error_correction(in_codes, model, initial_shift):
         initial_shift
     )
 
-    return out_codes
+    if debug:
+        logger.debug(
+            f"\n"
+            f"RAW CODES:     {in_codes[:50]}\n"
+            f"TOKENS IN:     {[inv_tokenizer[t] for t in tokens[:50]]}\n"
+            f"TOKENS PADDED: {[inv_tokenizer[t] for t in padded_tokens[:50]]}\n"
+            f"TOKENS OUT:    {[inv_tokenizer[t] for t in pred_tokens[:50]]}\n"
+            f"CODES OUT:     {out_codes[:50]}\n"
+        )
 
+    return out_codes
 class ErrorCorrection(multiprocessing.Process):
     def __init__(self, initial_settings: SystemOpts):
         super().__init__()
@@ -150,7 +164,13 @@ class ErrorCorrection(multiprocessing.Process):
             vocab_size = len(RTTY_Chars)
 
             self.model = SRUModel(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
-            self.model.load_state_dict(torch.load('./256_SRU_7268.pt', map_location='cpu'))
+            import os
+
+            model_path = os.path.join(
+                os.path.dirname(__file__),
+                "256_SRU_7268.pt"
+            )
+            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
             self.model.to('cpu')
             self.model.eval()
 
@@ -189,27 +209,11 @@ class ErrorCorrection(multiprocessing.Process):
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ]
                 
-                tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
-                inv_tokenizer = {i: c for c, i in tokenizer.items()}
-
-                tokens = codes_to_tokens_with_shift(
+                recovered_codes = error_correction(
                     msg_codes,
-                    tokenizer,
-                    msg.msg_start_shift
-                )
-
-                padded_tokens = pad_tokens(tokens)
-
-                pred_tokens = run_inference(
-                    model=self.model,
-                    tokens=torch.tensor(padded_tokens).unsqueeze(0),
-                    PAD_TOKEN=tokenizer["<PAD>"]
-                )
-
-                recovered_codes = tokens_to_codes_with_shift(
-                    pred_tokens,
-                    inv_tokenizer,
-                    msg.msg_start_shift
+                    self.model,
+                    msg.msg_start_shift,
+                    debug=True   # toggle this on/off
                 )
 
                 target_len = msg.msg_codes_len
@@ -218,15 +222,6 @@ class ErrorCorrection(multiprocessing.Process):
                     recovered_codes = recovered_codes[:target_len]
                 elif len(recovered_codes) < target_len:
                     recovered_codes += msg_codes[len(recovered_codes):]
-
-                logger.debug(
-                    f"\n"
-                    f"RAW CODES:     {msg_codes[:50]}\n"
-                    f"TOKENS IN:     {[inv_tokenizer[t] for t in tokens[:50]]}\n"
-                    f"TOKENS PADDED: {[inv_tokenizer[t] for t in padded_tokens[:50]]}\n"
-                    f"TOKENS OUT:    {[inv_tokenizer[t] for t in pred_tokens[:50]]}\n"
-                    f"CODES OUT:     {recovered_codes[:50]}\n"
-                )
 
                 corrected_codes = msg.codes[:]
                 corrected_codes[

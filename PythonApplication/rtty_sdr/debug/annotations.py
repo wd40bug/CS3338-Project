@@ -65,7 +65,7 @@ class DebugAnnotations(DebugCombineable):
         line(ax, "x", stops, "Stop", color="black", linestyle="--")
 
     @classmethod
-    def combine(cls, debugs: Iterable[DebugAnnotations]) -> DebugAnnotations:
+    def combine(cls, debugs: Iterable["DebugAnnotations"]) -> "DebugAnnotations":
         debug_list = list(debugs)
 
         if not debug_list:
