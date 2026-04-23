@@ -60,7 +60,7 @@ class Header(BaseModel):
 
 class Hidden(BaseModel):
     name: str
-    children: list[SettingsRenders]
+    children: list["SettingsRenders"]
     kind: Literal["hidden"] = "hidden"
 
 
