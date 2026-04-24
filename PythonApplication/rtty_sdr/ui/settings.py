@@ -115,6 +115,7 @@ class SettingsMenu:
         ),
         String(name="Port (empty for None)", write_back="port"),
         CheckBox(name="Error correction", write_back="error_correction"),
+        NumberSetting(min = 0, name="Set seed", write_back="set_seed"),
         NumberSetting(
             min=0,
             max=1,

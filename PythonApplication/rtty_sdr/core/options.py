@@ -117,6 +117,7 @@ class SystemOpts(Struct):
     callsign: str
     port: str | None
     error_correction: bool
+    set_seed: bool
     corruption: float
     num_iterations: int
 
@@ -150,8 +151,9 @@ class SystemOpts(Struct):
         callsign: str = "KJ5OEH",
         port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
         error_correction: bool = False,
-        corruption: float = 0,
         num_iterations: int = 0
+        corruption: float = 0
+        set_seed: int | None = False,
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -201,6 +203,7 @@ class SystemOpts(Struct):
             callsign=callsign,
             port=port,
             error_correction=error_correction,
-            corruption=corruption,
             num_iterations=num_iterations
+            corruption=corruption
+            set_seed=set_seed,
         )

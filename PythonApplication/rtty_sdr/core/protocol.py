@@ -2,8 +2,7 @@ from loguru import logger
 import msgspec
 from typing import Final, Self
 
-from numpy.random.mtrand import random
-
+import random
 import copy
 
 from rtty_sdr.core.generic_crc import GenericCRC
@@ -29,7 +28,6 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     Attributes:
         msg: actual message
         callsign:
-        encoding:
         codes: baudot codes as integers
         checksum: (may or may not be valid)
     """
@@ -39,17 +37,17 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     codes: list[int]
     checksum: int
 
+    def __str__(self) -> str:
+        return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
 
-def __str__(self) -> str:
-    return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
 
-
-def corrupt(codes: list[int], corruption: float) -> list[int]:
+def corrupt(codes: list[int], corruption: float, set_seed: int | None = None) -> list[int]:
+    random.seed(set_seed)
     corrupted_codes: list[int] = []
     for code in codes:
         new_code = code
         for bit_index in range(0, 5):
-            if random() < corruption:
+            if random.random() < corruption:
                 new_code ^= 1 << bit_index
         corrupted_codes.append(new_code)
     return corrupted_codes
@@ -61,11 +59,11 @@ class SendMessage(ProtocolMessage, frozen=True):
 
     @classmethod
     def create(
-        cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0
+        cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0, set_seed: bool = False
     ) -> Self:
         def unpack_bits(num: int, numchunks: int) -> list[int]:
             codes: list[int] = []
-            mask = 2**RTTYOpts.data_bits - 1
+            mask = 2**RTTYOpts.data_bits - 1 
             while num > 0:
                 codes.append(num & mask)
                 num >>= RTTYOpts.data_bits
@@ -99,20 +97,21 @@ class SendMessage(ProtocolMessage, frozen=True):
 
         corrupted_codes = codes
         corrupted_codes[len(phrase) : -CallsignLen] = corrupt(
-            codes[len(phrase) : -CallsignLen], corruption
+            corrupted_codes[len(phrase) : -CallsignLen], corruption
         )
-        corrupted_msg_codes = corrupted_codes[
-            len(phrase) : -(CallsignLen + ChecksumLen)
-        ]
+        corrupted_msg_codes = corrupted_codes[(len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)]
+        msg_codes = codes[(len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)]
 
         new_opts = copy.replace(opts, replace_invalid_with="�")
         corrupted_msg, _ = decode(corrupted_msg_codes, new_opts)
+        formatted_msg, _ = decode(msg_codes, new_opts)
+
         return cls(
-            msg=corrupted_msg,
-            callsign=callsign,
             codes=corrupted_codes,
             checksum=checksum,
             original_codes=codes,
+            callsign=callsign,
+            msg=formatted_msg,
             corrupted_msg=corrupted_msg,
         )
 
@@ -158,5 +157,5 @@ class RecvMessage(ProtocolMessage, frozen=True):
             valid_checksum=calculatedChecksum == checksum,
             msg_start_idx=msg_start_idx,
             msg_codes_len=msg_codes_len,
-            received_codes=received_codes,
+            received_codes=received_codes
         )

@@ -190,7 +190,8 @@ class RttyWebGUI:
             text_val,
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
-            self.__settings.opts.corruption
+            self.__settings.opts.corruption,
+            
         )
 
         if self.__message_container:
