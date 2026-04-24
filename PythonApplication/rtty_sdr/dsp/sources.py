@@ -67,13 +67,15 @@ class MicrophoneSource:
             channels=1,  # Mono
             blocksize=self.__chunk_size,
             dtype="float32",
+            latency='high'
         )
         self.__stream.start()
 
     def read_chunk(self) -> npt.NDArray[np.float64] | None:
         data, overflowed = self.__stream.read(self.__chunk_size)
 
-        assert not overflowed
+        if overflowed:
+            logger.warning("Audio buffer overflowed! Some data may be lost.")
 
         return data.flatten()
 

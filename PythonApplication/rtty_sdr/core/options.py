@@ -14,8 +14,8 @@ class RTTYOpts(Struct):
     pre_msg_stops: int
     post_msg_stops: int
 
-    data_bits: ClassVar[Final[int]] = 5
-
+    data_bits: Final[int] = 5
+    
     @property
     def space(self):
         return self.mark + self.shift
@@ -118,6 +118,7 @@ class SystemOpts(Struct):
     port: str | None
     error_correction: bool
     corruption: float
+    num_iterations: int
 
     @classmethod
     def default(
@@ -142,14 +143,16 @@ class SystemOpts(Struct):
         squelch_grace_percent: float = 0.25,
         idle_bits: float = 2,
         none_friction: float = 0.1,
-        initial_shift: Shift = Shift.FIGS,
+        initial_shift: Shift = Shift.LTRS,
         replace_invalid_with: str | None = None,
         engine: Literal["goertzel", "envelope"] = "goertzel",
         source: Literal["microphone", "internal"] = "microphone",
         callsign: str = "KJ5OEH",
         port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
         error_correction: bool = False,
-        corruption: float = 0
+        num_iterations: int = 0,
+        corruption: float = 0,
+        set_seed: int | None = None,
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -199,5 +202,8 @@ class SystemOpts(Struct):
             callsign=callsign,
             port=port,
             error_correction=error_correction,
-            corruption=corruption
+            set_seed=set_seed,
+            num_iterations=num_iterations,
+            corruption=corruption,
+            set_seed=set_seed,
         )

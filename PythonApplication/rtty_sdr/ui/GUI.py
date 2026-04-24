@@ -156,18 +156,19 @@ class RttyWebGUI:
             ui.label(f"{act} Message Details").classes("text-h5")
             ui.label(f"{act} on {stamp.strftime('%m/%d/%Y %I:%M%p')}")
             if sent:
-                ui.label(f"Intended: {meta.original_encoding}")
-                # TODO: Corruption
-                ui.label(f"Sent: {meta.encoding}")
+                ui.label(f"Intended Message: {meta.msg}")
+                ui.label(f"Intended: {meta.original_codes}")
+                ui.label(f"Sent: {meta.codes}")
             else:
                 assert isinstance(meta, RecvMessage)
-                ui.label(f"Received: {meta.encoding}")
-                ui.label(f"Corrected: {meta.encoding}")
+
+                ui.label(f"Received: {meta.received_codes if meta.received_codes is not None else meta.codes}")
+                ui.label(f"Corrected: {meta.codes}")
                 if meta.valid_checksum:
                     ui.label(f"Checksum Passed!")
                 else:
                     ui.label(
-                        f"Invalid Checksum! Calculated: {meta.calculated_checksum:04X}"
+                        f"Invalid Checksum! Calculated: {meta.calculated_checksum:04X} Found: {meta.checksum}"
                     )
             ui.label(f"Codes: {meta.codes}")
             dialog.open()

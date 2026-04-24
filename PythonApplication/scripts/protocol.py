@@ -21,11 +21,14 @@ import numpy.typing as npt
 import matplotlib.pyplot as plt
 import sys
 
+logger.remove()
+logger.add(sys.stderr, level="TRACE")
+
 opts = SystemOpts.default()
 message = "HI" if len(sys.argv) == 1 else sys.argv[1]
 
 send_message = SendMessage.create(message, "KJ5OEH", opts.baudot)
-logger.info(f"Sending: {send_message.encoding}")
+logger.info(f"Sending: {send_message}")
 encoded = send_message.codes
 signal, t, annotations = internal_signal(encoded, opts.signal, 0.05)
 
@@ -54,7 +57,7 @@ generator = decode_stream(
 
 for received, debug in protocol(generator, opts.baudot):
     if isinstance(received, RecvMessage):
-        logger.info(f"Received: {received.encoding}")
+        logger.info(f"Received: {received}")
 
     fig, axs = plt.subplots(3, 1)
     local_t = t[: len(debug.decode.envelope)]

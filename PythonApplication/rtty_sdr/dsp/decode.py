@@ -16,6 +16,7 @@ from rtty_sdr.dsp.squelch import Squelch
 from rtty_sdr.debug.annotations import DebugAnnotations
 from rtty_sdr.debug.debug_types import DebugCombineable
 import time
+from typing import Self
 
 
 class Code(BaseModel):
@@ -151,7 +152,7 @@ class DecodeDebug(DebugCombineable):
     len: int
 
     @classmethod
-    def combine(cls, debugs: Iterable[DecodeDebug]) -> DecodeDebug:
+    def combine(cls, debugs: Iterable[Self]) -> Self:
         debug_list = list(debugs)
 
         if not debug_list:
@@ -187,8 +188,8 @@ class StreamData:
     def __len__(self) -> int:
         return len(self.signal)
 
-    def __getitem__(self, key: slice | int) -> StreamData:
-        return StreamData(self.signal[key], self.envelope[key], self.squelch[key])
+    def __getitem__(self, key: slice | int) -> Self:
+        return self.__class__(self.signal[key], self.envelope[key], self.squelch[key])
 
 
 class DecodeDebugBuilder:
