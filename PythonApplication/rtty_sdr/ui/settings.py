@@ -58,12 +58,6 @@ class Header(BaseModel):
     kind: Literal["header"] = "header"
 
 
-class Hidden(BaseModel):
-    name: str
-    children: list[SettingsRenders]
-    kind: Literal["hidden"] = "hidden"
-
-
 type SettingsRenders = Annotated[
     NumberSetting | String | Selection | CheckBox | Header | Hidden,
     Field(discriminator="kind"),
@@ -74,7 +68,10 @@ class Hidden(BaseModel):
     children: list[SettingsRenders]
     kind: Literal["hidden"] = "hidden"
 
-
+class Hidden(BaseModel):
+    name: str
+    children: list[SettingsRenders]
+    kind: Literal["hidden"] = "hidden"
 
 def setattr_nested(obj: Any, path: str, value: Any) -> None:
     parts = path.split(".")
