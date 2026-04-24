@@ -2,7 +2,7 @@ from copy import replace
 import multiprocessing
 import queue
 import threading
-
+import os
 from loguru import logger
 
 from rtty_sdr.comms.messages import FinalMessage, ReceivedMessage, Settings, Shutdown
@@ -154,7 +154,7 @@ class ErrorCorrection(multiprocessing.Process):
         self.ai_model = None
         
     def load_model(self):
-        if self.ai_model is None:
+        if self.model is None:
             embedding_dim = 128 
             hidden_dim = 256 
             dropout = 0.0
@@ -162,14 +162,16 @@ class ErrorCorrection(multiprocessing.Process):
             bidirectional = True 
             vocab_size = len(RTTY_Chars)
 
-            self.ai_model = SRUModel(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
+            self.model = SRUModel(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
+
             model_path = os.path.join(
                 os.path.dirname(__file__),
                 "256_SRU_7268.pt"
             )
-            self.ai_model.load_state_dict(torch.load(model_path, map_location='cpu'))
-            self.ai_model.to('cpu')
-            self.ai_model.eval()
+            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            self.model.to('cpu')
+            self.model.eval()
+
             
     def run(self):
         self.__pubsub = PubSub(module_name="Error Correction")
@@ -198,12 +200,13 @@ class ErrorCorrection(multiprocessing.Process):
 
         while not stop_event.is_set():
             try:
-                # Mostly just extracting the message and writing back the corrected one
                 msg = msg_queue.get(timeout=0.1)
                 logger.debug(f"Processing message: {msg}")
+
                 if msg.valid_checksum or not self.__opts.error_correction:
                     self.__pubsub.publish(FinalMessage(msg))
                     continue
+
                 msg_codes = msg.codes[
                     msg.msg_start_idx : msg.msg_start_idx + msg.msg_codes_len
                 ]
@@ -230,8 +233,11 @@ class ErrorCorrection(multiprocessing.Process):
                     msg.checksum,
                     received_codes=msg.codes
                 )
+
                 self.__pubsub.publish(FinalMessage(corrected))
+
             except queue.Empty:
                 continue
+
         logger.info("Shutting down Error Correction")
         

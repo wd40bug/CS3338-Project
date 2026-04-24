@@ -189,7 +189,7 @@ class StreamData:
         return len(self.signal)
 
     def __getitem__(self, key: slice | int) -> Self:
-        return StreamData(self.signal[key], self.envelope[key], self.squelch[key])
+        return self.__class__(self.signal[key], self.envelope[key], self.squelch[key])
 
 
 class DecodeDebugBuilder:

@@ -1,5 +1,9 @@
 import multiprocessing as mp
 import os
+os.environ["SRU_DISABLE_CUDA"] = "1"
+os.environ["SRU_DISABLE_JIT"] = "1"
+
+from rtty_sdr.controller.controller import ControllerModule
 import sys
 import time
 from typing import Final, Deque

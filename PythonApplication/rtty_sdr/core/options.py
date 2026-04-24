@@ -14,8 +14,8 @@ class RTTYOpts(Struct):
     pre_msg_stops: int
     post_msg_stops: int
 
-    data_bits: ClassVar[Final[int]] = 5
-
+    data_bits: Final[int] = 5
+    
     @property
     def space(self):
         return self.mark + self.shift

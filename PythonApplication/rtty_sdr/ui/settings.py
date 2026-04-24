@@ -58,6 +58,12 @@ class Header(BaseModel):
     kind: Literal["header"] = "header"
 
 
+class Hidden(BaseModel):
+    name: str
+    children: list[SettingsRenders]
+    kind: Literal["hidden"] = "hidden"
+
+
 type SettingsRenders = Annotated[
     NumberSetting | String | Selection | CheckBox | Header | Hidden,
     Field(discriminator="kind"),
