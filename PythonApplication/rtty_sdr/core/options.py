@@ -118,6 +118,7 @@ class SystemOpts(Struct):
     port: str | None
     error_correction: bool
     corruption: float
+    num_iterations: int
 
     @classmethod
     def default(
@@ -149,7 +150,8 @@ class SystemOpts(Struct):
         callsign: str = "KJ5OEH",
         port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
         error_correction: bool = False,
-        corruption: float = 0
+        corruption: float = 0,
+        num_iterations: int = 0
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -199,5 +201,6 @@ class SystemOpts(Struct):
             callsign=callsign,
             port=port,
             error_correction=error_correction,
-            corruption=corruption
+            corruption=corruption,
+            num_iterations=num_iterations
         )

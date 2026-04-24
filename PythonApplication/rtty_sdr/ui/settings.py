@@ -58,16 +58,16 @@ class Header(BaseModel):
     kind: Literal["header"] = "header"
 
 
+type SettingsRenders = Annotated[
+    NumberSetting | String | Selection | CheckBox | Header | Hidden,
+    Field(discriminator="kind"),
+]
+
 class Hidden(BaseModel):
     name: str
     children: list[SettingsRenders]
     kind: Literal["hidden"] = "hidden"
 
-
-type SettingsRenders = Annotated[
-    NumberSetting | String | Selection | CheckBox | Header | Hidden,
-    Field(discriminator="kind"),
-]
 
 
 def setattr_nested(obj: Any, path: str, value: Any) -> None:
@@ -114,6 +114,13 @@ class SettingsMenu:
             max=1,
             name="Corruption Probability (out of 1)",
             write_back="corruption",
+        ),
+        NumberSetting(
+            name="AI Correction Iterations",
+            min=0,
+            max=100,
+            is_int = True,
+            write_back="num_iterations",
         ),
         Header(content="RTTY"),
         NumberSetting(name="Baud", min=10, max=200, write_back="rtty.baud"),
@@ -202,7 +209,7 @@ class SettingsMenu:
             min=0.125,
             write_back="squelch.bw_safety_margin",
         ),
-        Header(content="Decode Strem"),
+        Header(content="Decode Stream"),
         NumberSetting(
             name="Squelch Grace Percent",
             min=0.125,

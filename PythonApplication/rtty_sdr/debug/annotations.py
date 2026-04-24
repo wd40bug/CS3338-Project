@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from rtty_sdr.debug.debug_types import DebugCombineable
-
+from typing import Self
 
 def line(
     ax: Axes,
@@ -65,7 +65,7 @@ class DebugAnnotations(DebugCombineable):
         line(ax, "x", stops, "Stop", color="black", linestyle="--")
 
     @classmethod
-    def combine(cls, debugs: Iterable[DebugAnnotations]) -> DebugAnnotations:
+    def combine(cls, debugs: Iterable[Self]) -> Self:
         debug_list = list(debugs)
 
         if not debug_list:
