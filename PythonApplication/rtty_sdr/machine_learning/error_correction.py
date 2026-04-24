@@ -10,7 +10,6 @@ from rtty_sdr.comms.pubsub import PubSub
 from rtty_sdr.core.baudot import decode, LTRS_Map, FIGS_Map, Shift, LTRS_Map_rev, FIGS_Map_rev
 from rtty_sdr.core.options import Shift, SystemOpts
 from rtty_sdr.core.protocol import RecvMessage
-from rtty_sdr.dsp.protocol_decode import LengthLen
 from rtty_sdr.machine_learning.model import SRUModel
 import torch
 import os

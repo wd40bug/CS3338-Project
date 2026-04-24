@@ -157,20 +157,19 @@ class RttyWebGUI:
             ui.label(f"{act} on {stamp.strftime('%m/%d/%Y %I:%M%p')}")
             if sent:
                 ui.label(f"Intended Message: {meta.msg}")
-                ui.label(f"Intended: {meta.original_codes}")
-                ui.label(f"Sent: {meta.codes}")
+                ui.label(f"Sent Message: {meta.corrupted_msg}")
+                ui.label(f"Intended Codes: {meta.original_codes}")
+                ui.label(f"Sent Codes: {meta.codes}")
             else:
                 assert isinstance(meta, RecvMessage)
-
-                ui.label(f"Received: {meta.received_codes if meta.received_codes is not None else meta.codes}")
-                ui.label(f"Corrected: {meta.codes}")
+                ui.label(f"Received Codes: {meta.received_codes if meta.received_codes is not None else meta.codes}")
+                ui.label(f"Corrected Codes: {meta.codes}")
                 if meta.valid_checksum:
                     ui.label(f"Checksum Passed!")
                 else:
                     ui.label(
                         f"Invalid Checksum! Calculated: {meta.calculated_checksum:04X} Found: {meta.checksum}"
                     )
-            ui.label(f"Codes: {meta.codes}")
             dialog.open()
 
     def __on_sent(self, _: Sent) -> None:
@@ -192,7 +191,9 @@ class RttyWebGUI:
             text_val,
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
-            self.__settings.opts.corruption
+            self.__settings.opts.corruption,
+            self.__settings.opts.set_seed
+
         )
 
         if self.__message_container:

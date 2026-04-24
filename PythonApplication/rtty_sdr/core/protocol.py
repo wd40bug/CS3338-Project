@@ -37,12 +37,14 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     callsign: str
     codes: list[int]
     checksum: int
-    def __str__(self) -> str: return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum:04X})"
 
-def corrupt(
-    codes: list[int], corruption: float, set_seed: int | None = None
-) -> list[int]:
-    random.seed(set_seed)
+    def __str__(self) -> str:
+        return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
+
+
+def corrupt(codes: list[int], corruption: float, set_seed: int | None = None) -> list[int]:
+    if set_seed is not None:
+        random.seed(set_seed)
     corrupted_codes: list[int] = []
     for code in codes:
         new_code = code
@@ -59,7 +61,7 @@ class SendMessage(ProtocolMessage, frozen=True):
 
     @classmethod
     def create(
-        cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0
+        cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0, set_seed: int | None = None
     ) -> Self:
         def unpack_bits(num: int, numchunks: int) -> list[int]:
             codes: list[int] = []
@@ -97,7 +99,7 @@ class SendMessage(ProtocolMessage, frozen=True):
 
         corrupted_codes = codes
         corrupted_codes[len(phrase) : -CallsignLen] = corrupt(
-            codes[len(phrase) : -CallsignLen], corruption
+            corrupted_codes[len(phrase) : -CallsignLen], corruption, set_seed 
         )
         corrupted_msg_codes = corrupted_codes[len(phrase) : -(CallsignLen + ChecksumLen)]
 
