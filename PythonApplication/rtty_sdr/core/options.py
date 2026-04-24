@@ -202,7 +202,6 @@ class SystemOpts(Struct):
             callsign=callsign,
             port=port,
             error_correction=error_correction,
-            set_seed=set_seed,
             num_iterations=num_iterations,
             corruption=corruption,
             set_seed=set_seed,
