@@ -5,7 +5,7 @@ from sru import SRU
 SRU.use_torchscript = False
 import torch
 import torch.nn as nn
-
+#  $env:Path += ";C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.xx.xxxxx\bin\Hostx64\x64"
 class SRUModel(nn.Module):
     def __init__(self, vocab_size,
                  embedding_dim, hidden_dim,
