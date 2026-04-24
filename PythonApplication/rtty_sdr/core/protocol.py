@@ -29,6 +29,7 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     Attributes:
         msg: actual message
         callsign:
+        encoding:
         codes: baudot codes as integers
         checksum: (may or may not be valid)
     """
@@ -38,8 +39,9 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
     codes: list[int]
     checksum: int
 
-    def __str__(self) -> str:
-        return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
+
+def __str__(self) -> str:
+    return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
 
 
 def corrupt(codes: list[int], corruption: float) -> list[int]:
@@ -99,18 +101,19 @@ class SendMessage(ProtocolMessage, frozen=True):
         corrupted_codes[len(phrase) : -CallsignLen] = corrupt(
             codes[len(phrase) : -CallsignLen], corruption
         )
-        corrupted_msg_codes = corrupted_codes[len(phrase) : -(CallsignLen + ChecksumLen)]
+        corrupted_msg_codes = corrupted_codes[
+            len(phrase) : -(CallsignLen + ChecksumLen)
+        ]
 
         new_opts = copy.replace(opts, replace_invalid_with="�")
         corrupted_msg, _ = decode(corrupted_msg_codes, new_opts)
-
         return cls(
-            msg=msg,
-            corrupted_msg=corrupted_msg,
+            msg=corrupted_msg,
             callsign=callsign,
+            codes=corrupted_codes,
             checksum=checksum,
             original_codes=codes,
-            codes=corrupted_codes,
+            corrupted_msg=corrupted_msg,
         )
 
 
@@ -138,7 +141,7 @@ class RecvMessage(ProtocolMessage, frozen=True):
         codes: list[int],
         msg_codes_len: int,
         checksum: int,
-        received_codes: None | list[int] = None
+        received_codes: None | list[int] = None,
     ) -> Self:
         msg_start_idx = len(phrase) + (LengthLen * LengthDuplicates)
         checksum_start_idx = msg_start_idx + msg_codes_len
@@ -155,5 +158,5 @@ class RecvMessage(ProtocolMessage, frozen=True):
             valid_checksum=calculatedChecksum == checksum,
             msg_start_idx=msg_start_idx,
             msg_codes_len=msg_codes_len,
-            received_codes=received_codes
+            received_codes=received_codes,
         )
