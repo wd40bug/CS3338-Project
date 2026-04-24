@@ -2,7 +2,9 @@ import multiprocessing as mp
 import os
 os.environ["SRU_DISABLE_CUDA"] = "1"
 os.environ["SRU_DISABLE_JIT"] = "1"
+# os.environ["SRU_FORCE_CPU"] = "1"
 
+from rtty_sdr.comms.messages import Shutdown
 from rtty_sdr.controller.controller import ControllerModule
 import sys
 import time
@@ -19,6 +21,7 @@ from rtty_sdr.dsp.DSP import DspModule
 from rtty_sdr.debug.debug_socket import DebugSocket
 from rtty_sdr.machine_learning.error_correction import ErrorCorrection
 from rtty_sdr.ui.GUI import RttyWebGUI, ui
+from rtty_sdr.comms.pubsub import PubSub
 
 logger.remove()
 logger.add(sys.stderr, level="TRACE", enqueue=True)
@@ -49,7 +52,12 @@ if __name__ == "__main__":
     error_correction.start()
     time.sleep(1)
 
-    retcode = ui.run(reload=False, title="RTTY Chat", dark=False, port=8080)
+    try:
+        retcode = ui.run(reload=False, title="RTTY Chat", dark=False, port=8080)
+    except KeyboardInterrupt:
+        retcode = 1
+        pubsub = PubSub(module_name="Keyboard interrupt shutdown")
+        pubsub.publish(Shutdown())
 
     logger.info(f"UI Exited with code: {retcode}")
     # breakpoint()

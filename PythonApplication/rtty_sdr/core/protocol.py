@@ -14,6 +14,7 @@ LengthLen: Final[int] = 2
 LengthDuplicates: Final[int] = 5
 ChecksumLen: Final[int] = 4
 CallsignLen: Final[int] = 6
+MsgStart: Final[int] = len(phrase) + LengthLen * LengthDuplicates
 
 crc20 = GenericCRC("CRC20 0xb5827", 20, 0xB5827)
 
