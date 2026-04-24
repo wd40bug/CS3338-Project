@@ -205,4 +205,5 @@ class SystemOpts(Struct):
             error_correction=error_correction,
             num_iterations=num_iterations,
             corruption=corruption,
+            set_seed=set_seed
         )
