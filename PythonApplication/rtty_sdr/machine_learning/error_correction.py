@@ -153,7 +153,7 @@ class ErrorCorrection(multiprocessing.Process):
         self.ai_model = None
         
     def load_model(self):
-        if self.model is None:
+        if self.ai_model is None:
             embedding_dim = 128 
             hidden_dim = 256 
             dropout = 0.0
@@ -161,15 +161,15 @@ class ErrorCorrection(multiprocessing.Process):
             bidirectional = True 
             vocab_size = len(RTTY_Chars)
 
-            self.model = SRUModel(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
+            self.ai_model = SRUModel(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
 
             model_path = os.path.join(
                 os.path.dirname(__file__),
                 "256_SRU_7268.pt"
             )
-            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
-            self.model.to('cpu')
-            self.model.eval()
+            self.ai_model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            self.ai_model.to('cpu')
+            self.ai_model.eval()
 
             
     def run(self):
