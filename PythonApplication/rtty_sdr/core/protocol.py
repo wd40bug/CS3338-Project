@@ -41,7 +41,9 @@ class ProtocolMessage(msgspec.Struct, frozen=True):
         return f"Message from {self.callsign}: {self.msg} (Codes: {self.codes}, Checksum: {self.checksum})"
 
 
-def corrupt(codes: list[int], corruption: float, set_seed: int | None = None) -> list[int]:
+def corrupt(
+    codes: list[int], corruption: float, set_seed: int | None = None
+) -> list[int]:
     random.seed(set_seed)
     corrupted_codes: list[int] = []
     for code in codes:
@@ -59,11 +61,16 @@ class SendMessage(ProtocolMessage, frozen=True):
 
     @classmethod
     def create(
-        cls, msg: str, callsign: str, opts: BaudotOptions, corruption: float = 0.0, set_seed: bool = False
+        cls,
+        msg: str,
+        callsign: str,
+        opts: BaudotOptions,
+        corruption: float = 0.0,
+        set_seed: bool = False,
     ) -> Self:
         def unpack_bits(num: int, numchunks: int) -> list[int]:
             codes: list[int] = []
-            mask = 2**RTTYOpts.data_bits - 1 
+            mask = 2**RTTYOpts.data_bits - 1
             while num > 0:
                 codes.append(num & mask)
                 num >>= RTTYOpts.data_bits
@@ -97,10 +104,14 @@ class SendMessage(ProtocolMessage, frozen=True):
 
         corrupted_codes = codes
         corrupted_codes[len(phrase) : -CallsignLen] = corrupt(
-            corrupted_codes[len(phrase) : -CallsignLen], corruption
+            corrupted_codes[len(phrase) : -CallsignLen], corruption, set_seed
         )
-        corrupted_msg_codes = corrupted_codes[(len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)]
-        msg_codes = codes[(len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)]
+        corrupted_msg_codes = corrupted_codes[
+            (len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)
+        ]
+        msg_codes = codes[
+            (len(phrase) + len(lencodes) * 3) : -(len(callsign_encoding) + ChecksumLen)
+        ]
 
         new_opts = copy.replace(opts, replace_invalid_with="�")
         corrupted_msg, _ = decode(corrupted_msg_codes, new_opts)
@@ -157,5 +168,6 @@ class RecvMessage(ProtocolMessage, frozen=True):
             valid_checksum=calculatedChecksum == checksum,
             msg_start_idx=msg_start_idx,
             msg_codes_len=msg_codes_len,
-            received_codes=received_codes
+            received_codes=received_codes,
         )
+

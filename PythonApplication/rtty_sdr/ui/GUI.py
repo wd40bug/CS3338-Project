@@ -156,6 +156,7 @@ class RttyWebGUI:
             ui.label(f"{act} Message Details").classes("text-h5")
             ui.label(f"{act} on {stamp.strftime('%m/%d/%Y %I:%M%p')}")
             if sent:
+                ui.label(f"Intended Message: {meta.msg}")
                 ui.label(f"Intended: {meta.original_codes}")
                 ui.label(f"Sent: {meta.codes}")
             else:
@@ -191,7 +192,7 @@ class RttyWebGUI:
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
             self.__settings.opts.corruption,
-            
+
         )
 
         if self.__message_container:
