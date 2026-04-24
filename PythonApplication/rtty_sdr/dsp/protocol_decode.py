@@ -1,4 +1,3 @@
-from collections import Counter
 from typing import Literal, Self
 from enum import IntEnum, auto
 from typing import Callable
@@ -7,12 +6,19 @@ import msgspec
 from typing_extensions import Iterable, Iterator
 from rtty_sdr.core.baudot import decode, validate_code
 from rtty_sdr.core.options import BaudotOptions, RTTYOpts, Shift
-from rtty_sdr.core.protocol import CallsignLen, ChecksumLen, LengthDuplicates, LengthLen, RecvMessage
+from rtty_sdr.core.protocol import (
+    CallsignLen,
+    ChecksumLen,
+    LengthDuplicates,
+    LengthLen,
+    RecvMessage,
+)
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.commands import Command
 from rtty_sdr.dsp.decode import DecodeDebug, DecodeYield
 from rtty_sdr.core.protocol import phrase
 from itertools import batched
+
 
 class ProtocolState(IntEnum):
     Phrase = auto()
@@ -73,6 +79,7 @@ class ProtocolDecode:
         return packed_value
 
     def update(self, code: int) -> None | RecvMessage:
+        logger.trace(f"Protocol received code {code}")
         self.__codes.append(code)
 
         match self.__state:
@@ -85,25 +92,41 @@ class ProtocolDecode:
                             f"Did not encounter code phrase ({phrase}). Encountered {self.__codes}"
                         )
             case ProtocolState.Length:
+
+                def QMR(nums: Iterable[tuple[int, int]]) -> int:
+                    length_len_bits = LengthLen * RTTYOpts.data_bits
+                    counts: list[int] = [0] * length_len_bits
+                    for length in nums:
+                        len = self.pack_bits(length)
+                        logger.trace(len)
+                        for i in range(0, length_len_bits):
+                            bit = (len & 1 << i) != 0
+                            counts[i] += 1 if bit else -1
+
+                    ret: int = 0
+                    logger.trace(f"{list(reversed(counts))}")
+                    for i, count in reversed(list(enumerate(counts))):
+                        if count > 0:
+                            ret |= 1 << i
+                        elif count == 0:
+                            raise ValueError(
+                                f"Failed to get majority for bit {length_len_bits - i}"
+                            )
+                    return ret
+
                 if len(self.__codes) == (LengthLen * LengthDuplicates) + len(phrase):
-                    counts = Counter(
+                    length = QMR(
                         map(
-                            self.pack_bits,
+                            lambda b: (b[0], b[1]),
                             batched(self.__codes[len(phrase) :], LengthLen),
                         )
                     )
-                    length, count = counts.most_common(1)[0]
-                    if count > LengthDuplicates // 2:
-                        self.__msg_len = length
-                        logger.trace(f"Receiving message of length {length}")
-                        if length > 0:
-                            self.__state = ProtocolState.Message
-                        else:
-                            self.__state = ProtocolState.Checksum
+                    self.__msg_len = length
+                    logger.debug(f"Found msg with length: {length}, from codes: {self.__codes[len(phrase ):]}")
+                    if length > 0:
+                        self.__state = ProtocolState.Message
                     else:
-                        raise ValueError(
-                            f"Failed to get majority for length of {length}. Counts: {counts}"
-                        )
+                        self.__state = ProtocolState.Checksum
             case ProtocolState.Message:
                 if not validate_code(
                     code,
@@ -130,7 +153,9 @@ class ProtocolDecode:
                     + ChecksumLen
                 ):
                     self.__checksum = self.pack_bits(self.__codes[-ChecksumLen:])
-                    logger.trace(f"Receiving message with checksum codes: {self.__codes[-ChecksumLen:]} -> {self.__checksum}")
+                    logger.trace(
+                        f"Receiving message with checksum codes: {self.__codes[-ChecksumLen:]} -> {self.__checksum}"
+                    )
                     self.__state = ProtocolState.Callsign
             case ProtocolState.Callsign:
                 if not validate_code(
