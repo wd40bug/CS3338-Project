@@ -119,6 +119,7 @@ class SystemOpts(Struct):
     error_correction: bool
     corruption: float
     num_iterations: int
+    set_seed: int | None
 
     @classmethod
     def default(
@@ -202,7 +203,6 @@ class SystemOpts(Struct):
             callsign=callsign,
             port=port,
             error_correction=error_correction,
-            set_seed=set_seed,
             num_iterations=num_iterations,
             corruption=corruption,
             set_seed=set_seed,
