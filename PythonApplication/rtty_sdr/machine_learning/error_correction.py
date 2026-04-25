@@ -327,7 +327,7 @@ class ErrorCorrection(multiprocessing.Process):
             )
 
             model_path = os.path.join(os.path.dirname(__file__), "256_SRU_7268.pt")
-            self.ai_model.load_state_dict(torch.load(model_path, map_location="cpu"))
+            self.ai_model.load_state_dict(torch.load(model_path, map_location="cpu", weights_only=False))
             self.ai_model.to("cpu")
             self.ai_model.eval()
 
