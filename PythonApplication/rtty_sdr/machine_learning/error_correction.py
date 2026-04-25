@@ -266,9 +266,11 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
 
 
 def error_correction(in_codes: list[int], model, initial_shift, debug=False):
-    # Find invalid codes (0) and replaces with one of the closest valid characters (one bit flipped)
+    # Find invalid codes (0,5) and replaces with one of the closest valid characters (one bit flipped)
+    corrections_0 = [1 << i for i in range(0, RTTYOpts.data_bits)]
+    corrections_5 = [5 | 1 << i for i in range(0, RTTYOpts.data_bits) if 1 << i != 5]
     in_codes = [
-        code if validate_code(code) else 1 << random.randint(0, RTTYOpts.data_bits)
+        random.choice(corrections_0) if code == 0 else random.choice(corrections_5) if code == 5 else code
         for code in in_codes
     ]
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
