@@ -1,4 +1,5 @@
 from typing import Literal, Self
+from copy import replace
 from enum import IntEnum, auto
 from typing import Callable
 from loguru import logger
@@ -11,6 +12,7 @@ from rtty_sdr.core.protocol import (
     ChecksumLen,
     LengthDuplicates,
     LengthLen,
+    MsgStart,
     RecvMessage,
 )
 from rtty_sdr.debug.state_changes import StateChanges
@@ -49,15 +51,15 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
 
 
 class ProtocolDecode:
-    def __init__(self, opts: BaudotOptions) -> None:
+    def __init__(self, opts: BaudotOptions, skip_unknown_baudot: bool = True) -> None:
         self.__state: ProtocolState = ProtocolState.Phrase
         self.__codes: list[int] = []
-        self.__msg: str = ""
-        self.__callsign: str = ""
         self.__opts = opts
         self.__shift: Shift | None = None
         self.__msg_len: int = 0
         self.__checksum: int = 0
+        self.__callsign = ""
+        self.__skip = skip_unknown_baudot
 
     @property
     def state(self) -> ProtocolState:
@@ -88,7 +90,7 @@ class ProtocolDecode:
                     if self.__codes == list(phrase):
                         self.__state = ProtocolState.Length
                     else:
-                        raise ValueError(
+                        raise RuntimeError(
                             f"Did not encounter code phrase ({phrase}). Encountered {self.__codes}"
                         )
             case ProtocolState.Length:
@@ -109,7 +111,7 @@ class ProtocolDecode:
                         if count > 0:
                             ret |= 1 << i
                         elif count == 0:
-                            raise ValueError(
+                            raise RuntimeError(
                                 f"Failed to get majority for bit {length_len_bits - i}"
                             )
                     return ret
@@ -128,20 +130,15 @@ class ProtocolDecode:
                     else:
                         self.__state = ProtocolState.Checksum
             case ProtocolState.Message:
-                if not validate_code(
-                    code,
-                    self.__shift
-                    if self.__shift is not None
-                    else self.__opts.initial_shift,
-                ):
-                    raise ValueError(f"Invalid code: {code}")
-                char, self.__shift = decode(code, self.__opts, self.__shift)
-                self.__msg += char
-
                 if len(self.__codes) == self.__msg_len + (
                     LengthLen * LengthDuplicates
                 ) + len(phrase):
-                    logger.trace(f"Receiving message with msg '{self.__msg}'")
+                    msg_codes = self.__codes[-self.__msg_len:]
+                    try:
+                        msg, _ = decode(msg_codes, self.__opts)
+                        logger.trace(f"Receiving message with msg '{msg}'")
+                    except ValueError as e:
+                        logger.debug(f"{e} continuing")
                     self.__state = ProtocolState.Checksum
                     self.__shift = None
             case ProtocolState.Checksum:
@@ -158,18 +155,25 @@ class ProtocolDecode:
                     )
                     self.__state = ProtocolState.Callsign
             case ProtocolState.Callsign:
-                if not validate_code(
+                if validate_code(
                     code,
                     self.__shift
                     if self.__shift is not None
                     else self.__opts.initial_shift,
                 ):
-                    raise ValueError(f"Invalid code: {code}")
-                char, self.__shift = decode(code, self.__opts, self.__shift)
+                    char, self.__shift = decode(code, self.__opts, self.__shift)
+                else:
+                    char = " "
                 self.__callsign += char
                 if len(self.__callsign) == CallsignLen:
+                    if self.__skip:
+                        local_baudot = replace(self.__opts, replace_invalid_with="\uFFFD")
+                    else:
+                        local_baudot = self.__opts
+                    msg_codes = self.__codes[MsgStart:MsgStart + self.__msg_len]
+                    msg, _ = decode(msg_codes, local_baudot)
                     return RecvMessage.create(
-                        self.__msg,
+                        msg,
                         self.__callsign.strip(" "),
                         self.__codes,
                         self.__msg_len,
@@ -181,9 +185,8 @@ class ProtocolDecode:
         self.__state = ProtocolState.Length
         self.__shift = None
         self.__msg_len = 0
-        self.__checksum = 0
-        self.__msg = ""
         self.__callsign = ""
+        self.__checksum = 0
 
 
 class StoppedMsg(msgspec.Struct, frozen=True):
@@ -237,6 +240,8 @@ def protocol(
                 protocol.reset()
                 debugs.clear()
         except ValueError as e:
+            logger.warning(f"{e}: Skipping")
+        except RuntimeError as e:
             logger.warning(f"{e}: Resetting protocol")
             if status_callback:
                 status_callback("signal_lost")
