@@ -266,11 +266,13 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
 
 
 def error_correction(in_codes: list[int], model, initial_shift, debug=False):
-    # Find invalid codes (0) and replaces with one of the closest valid characters (one bit flipped)
+    # Find invalid codes (0,5) and replaces with one of the closest valid characters (one bit flipped)
+    corrections_0 = [1 << i for i in range(0, RTTYOpts.data_bits)]
+    corrections_5 = [5 | 1 << i for i in range(0, RTTYOpts.data_bits) if 1 << i != 5]
     in_codes = [
-        code if validate_code(code) else 1 << random.randint(0, RTTYOpts.data_bits)
+        random.choice(corrections_0) if code == 0 else random.choice(corrections_5) if code == 5 else code
         for code in in_codes
-    ]
+    ] + [LTRS_Map[' '], LTRS_Map['A']]
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
     inv_tokenizer = {i: c for c, i in tokenizer.items()}
 
@@ -325,7 +327,7 @@ class ErrorCorrection(multiprocessing.Process):
             )
 
             model_path = os.path.join(os.path.dirname(__file__), "256_SRU_7268.pt")
-            self.ai_model.load_state_dict(torch.load(model_path, map_location="cpu"))
+            self.ai_model.load_state_dict(torch.load(model_path, map_location="cpu", weights_only=False))
             self.ai_model.to("cpu")
             self.ai_model.eval()
 
@@ -376,7 +378,7 @@ class ErrorCorrection(multiprocessing.Process):
                 if len(recovered_codes) > target_len:
                     recovered_codes = recovered_codes[:target_len]
                 elif len(recovered_codes) < target_len:
-                    recovered_codes += msg_codes[len(recovered_codes) :]
+                    recovered_codes[target_len:] = msg_codes[len(recovered_codes):]
 
                 corrected_codes = msg.codes
                 corrected_codes[

@@ -2,7 +2,7 @@ import multiprocessing as mp
 import os
 os.environ["SRU_DISABLE_CUDA"] = "1"
 os.environ["SRU_DISABLE_JIT"] = "1"
-# os.environ["SRU_FORCE_CPU"] = "1"
+os.environ["SRU_FORCE_CPU"] = "1"
 
 from rtty_sdr.comms.messages import Shutdown
 from rtty_sdr.controller.controller import ControllerModule
