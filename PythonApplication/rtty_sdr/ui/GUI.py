@@ -131,7 +131,7 @@ class RttyWebGUI:
             self.__remove_receiving_spinner()
 
             stamp = datetime.now()
-            ui.chat_message(
+            recv_bub = ui.chat_message(
                 message.msg,
                 name=message.callsign,
                 sent=False,
@@ -143,6 +143,10 @@ class RttyWebGUI:
                     cast(ChatMessage, e.sender), message, stamp
                 ),
             )
+            if not message.valid_checksum and not self.__settings.opts.error_correction:
+                recv_bub.props('bg-color=red-400')
+            elif not message.valid_checksum and self.__settings.opts.error_correction:
+                recv_bub.props('bg-color=orange-400')
         self.__scroll_chat()
 
     def __on_msg_clicked(self, _: ChatMessage, meta: ProtocolMessage, stamp: datetime):
@@ -151,7 +155,10 @@ class RttyWebGUI:
         logger.info("MSG CLICKED")
         with (
             ui.dialog() as dialog,
-            ui.card().classes(f"min-w-[400px] {"bg-green-500" if not sent else ""}"),
+            ui.card().classes("min-w-[400px])") if sent
+            else ui.card().classes("min-w-[400px]) bg-red-400") if not sent and not meta.valid_checksum and meta.received_codes is None
+            else ui.card().classes("min-w-[400px]) bg-orange-400") if not sent and not meta.valid_checksum and meta.received_codes is not None
+            else ui.card().classes("min-w-[400px]) bg-green-500")
         ):
             ui.label(f"{act} Message Details").classes("text-h5")
             ui.label(f"{act} on {stamp.strftime('%m/%d/%Y %I:%M%p')}")

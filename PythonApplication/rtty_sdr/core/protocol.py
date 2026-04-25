@@ -149,7 +149,7 @@ class RecvMessage(ProtocolMessage, frozen=True):
     ) -> Self:
         msg_start_idx = len(phrase) + (LengthLen * LengthDuplicates)
         checksum_start_idx = msg_start_idx + msg_codes_len
-        calculatedChecksum = calculate_checksum(codes[:checksum_start_idx])
+        calculatedChecksum = calculate_checksum(codes[msg_start_idx:checksum_start_idx])
         logger.trace(
             f"Codes: {codes}, checksum_start: {checksum_start_idx}, calculatedChecksum: {calculatedChecksum:4x}"
         )
