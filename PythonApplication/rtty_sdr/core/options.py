@@ -117,7 +117,7 @@ class SystemOpts(Struct):
     callsign: str
     port: str | None
     error_correction: bool
-    set_seed: int | None
+    set_seed: int
     corruption: float
     num_iterations: int
 
@@ -153,7 +153,7 @@ class SystemOpts(Struct):
         error_correction: bool = False,
         num_iterations: int = 1,
         corruption: float = 0,
-        set_seed: int | None = None,
+        set_seed: int = 0,
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
