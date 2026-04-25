@@ -376,7 +376,7 @@ class ErrorCorrection(multiprocessing.Process):
                 if len(recovered_codes) > target_len:
                     recovered_codes = recovered_codes[:target_len]
                 elif len(recovered_codes) < target_len:
-                    recovered_codes += msg_codes[len(recovered_codes) :]
+                    recovered_codes[target_len:] = msg_codes[len(recovered_codes):]
 
                 corrected_codes = msg.codes
                 corrected_codes[
