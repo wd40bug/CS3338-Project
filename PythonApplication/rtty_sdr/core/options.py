@@ -128,7 +128,7 @@ class SystemOpts(Struct):
         baud: float = 45.45,
         mark: int = 2125,
         shift: int = 170,
-        pre_msg_stops: int = 5,
+        pre_msg_stops: int = 20,
         post_msg_stops: int = 1,
         Fs: int = 8000,
         oversampling: int = 5,
