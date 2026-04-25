@@ -77,7 +77,6 @@ BOTH_Map: Final[dict[str, int]] = {
     char: code for char, code in LTRS_Map.items() if char in FIGS_Map
 }
 
-
 def validate_char(char: str, case_sensitive: bool = False) -> bool:
     """
     Return if the char is a valid Baudot character
