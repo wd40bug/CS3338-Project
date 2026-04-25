@@ -272,7 +272,7 @@ def error_correction(in_codes: list[int], model, initial_shift, debug=False):
     in_codes = [
         random.choice(corrections_0) if code == 0 else random.choice(corrections_5) if code == 5 else code
         for code in in_codes
-    ]
+    ] + [LTRS_Map[' '], LTRS_Map['A']]
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
     inv_tokenizer = {i: c for c, i in tokenizer.items()}
 
