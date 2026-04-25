@@ -7,7 +7,7 @@ from loguru import logger
 
 from rtty_sdr.comms.messages import FinalMessage, ReceivedMessage, Settings, Shutdown
 from rtty_sdr.comms.pubsub import PubSub
-from rtty_sdr.core.baudot import decode, LTRS_Map, FIGS_Map, Shift, LTRS_Map_rev, FIGS_Map_rev
+from rtty_sdr.core.baudot import decode, LTRS_Map, FIGS_Map, Shift, LTRS_Map_rev, FIGS_Map_rev, validate_code
 from rtty_sdr.core.options import Shift, SystemOpts
 from rtty_sdr.core.protocol import RecvMessage
 from rtty_sdr.machine_learning.model import SRUModel
@@ -112,7 +112,8 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
 
     return tokens
 
-def error_correction(in_codes, model, initial_shift, debug=False):
+def error_correction(in_codes: list[int], model, initial_shift, debug=False):
+    in_codes = list(filter(validate_code, in_codes))
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
     inv_tokenizer = {i: c for c, i in tokenizer.items()}
 
