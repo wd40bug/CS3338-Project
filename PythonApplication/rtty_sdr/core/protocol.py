@@ -97,11 +97,14 @@ class SendMessage(ProtocolMessage, frozen=True):
             + callsign_encoding
         )
 
+        checksum_idx = len(phrase) + (LengthLen * LengthDuplicates) + length
+        callsign_index = checksum_idx + ChecksumLen
+
         corrupted_codes = codes
-        corrupted_codes[len(phrase) : -CallsignLen] = corrupt(
-            corrupted_codes[len(phrase) : -CallsignLen], corruption, set_seed 
+        corrupted_codes[len(phrase) : callsign_index] = corrupt(
+            corrupted_codes[len(phrase) : callsign_index], corruption, set_seed 
         )
-        corrupted_msg_codes = corrupted_codes[len(phrase) : -(CallsignLen + ChecksumLen)]
+        corrupted_msg_codes = corrupted_codes[len(phrase) + LengthLen * LengthDuplicates : checksum_idx]
 
         new_opts = copy.replace(opts, replace_invalid_with="�")
         corrupted_msg, _ = decode(corrupted_msg_codes, new_opts)

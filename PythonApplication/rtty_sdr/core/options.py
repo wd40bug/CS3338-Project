@@ -14,7 +14,7 @@ class RTTYOpts(Struct):
     pre_msg_stops: int
     post_msg_stops: int
 
-    data_bits: Final[int] = 5
+    data_bits: ClassVar[Final[int]] = 5
     
     @property
     def space(self):
@@ -117,9 +117,9 @@ class SystemOpts(Struct):
     callsign: str
     port: str | None
     error_correction: bool
+    set_seed: int | None
     corruption: float
     num_iterations: int
-    set_seed: int | None
 
     @classmethod
     def default(
@@ -151,7 +151,7 @@ class SystemOpts(Struct):
         callsign: str = "KJ5OEH",
         port: str = "/dev/ttyUSB0" if sys.platform == "linux" else "COM0",
         error_correction: bool = False,
-        num_iterations: int = 0,
+        num_iterations: int = 1,
         corruption: float = 0,
         set_seed: int | None = None,
     ) -> Self:

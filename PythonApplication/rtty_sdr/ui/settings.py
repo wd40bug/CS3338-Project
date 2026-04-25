@@ -114,13 +114,19 @@ class SettingsMenu:
         CheckBox(name="Error correction", write_back="error_correction"),
         NumberSetting(
             min=0,
+            name="Set Seed",
+            is_int=True,
+            write_back="set_seed",
+        ),
+        NumberSetting(
+            min=0,
             max=1,
             name="Corruption Probability (out of 1)",
             write_back="corruption",
         ),
         NumberSetting(
             name="AI Correction Iterations",
-            min=0,
+            min=1,
             max=100,
             is_int = True,
             write_back="num_iterations",
