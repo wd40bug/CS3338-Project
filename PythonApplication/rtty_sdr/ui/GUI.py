@@ -192,7 +192,7 @@ class RttyWebGUI:
             self.__settings.opts.callsign,
             self.__settings.opts.baudot,
             self.__settings.opts.corruption,
-            self.__settings.opts.set_seed,
+            self.__settings.opts.set_seed or None,
 
         )
 
