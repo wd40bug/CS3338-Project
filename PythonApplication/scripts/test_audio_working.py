@@ -21,4 +21,4 @@ while time.time() - t0 < 10:
 data = np.concat(frames)
 sd.play(data, opts.signal.Fs)
 sd.wait()
-write("out.wav", opts.signal.Fs, data)
+write("out.wav", opts.signal.Fs, data.astype(np.int16))
