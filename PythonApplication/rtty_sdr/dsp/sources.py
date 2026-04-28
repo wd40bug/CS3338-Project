@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import sounddevice as sd
 import queue
+import scipy.signal as scp
 
 from rtty_sdr.core.options import DecodeCommon
 from rtty_sdr.dsp.commands import CommandsQueueQueue, FullStopCommand
@@ -17,12 +18,12 @@ class MockSignalSource:
         self,
         initial: npt.NDArray[np.float64],
         opts: DecodeCommon,
-        queue: queue.Queue[npt.NDArray[np.float64]] | None = None,
+        data_queue: queue.Queue[npt.NDArray[np.float64]] | None = None,
         pill_queue: CommandsQueueQueue | None = None
     ):
         self.__buffer: npt.NDArray[np.float64] = initial
         self.chunk_size: Final[int] = opts.chunk_size
-        self.__queue: Final[queue.Queue[npt.NDArray[np.float64]] | None] = queue
+        self.__queue: Final[queue.Queue[npt.NDArray[np.float64]] | None] = data_queue
         self.__pill_queue = pill_queue
 
     def read_chunk(self) -> npt.NDArray[np.float64] | None:
@@ -63,7 +64,6 @@ class MicrophoneSource:
 
         # Initialize the input stream
         self.__stream = sd.InputStream(
-            samplerate=self.__sample_rate,
             channels=1,  # Mono
             blocksize=self.__chunk_size,
             dtype="float32",
@@ -77,7 +77,12 @@ class MicrophoneSource:
         if overflowed:
             logger.warning("Audio buffer overflowed! Some data may be lost.")
 
-        return data.flatten()
+        hardware_rate = self.__stream.samplerate
+        flat_data = data.flatten()
+
+        resampled: npt.NDArray[np.float64] = scp.resample_poly(flat_data, up=self.__sample_rate, down=hardware_rate)
+
+        return resampled
 
     def __del__(self) -> None:
         self.__stream.stop()
