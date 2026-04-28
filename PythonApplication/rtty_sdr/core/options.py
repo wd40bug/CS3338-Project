@@ -120,6 +120,7 @@ class SystemOpts(Struct):
     set_seed: int
     corruption: float
     num_iterations: int
+    source_chunk_size: int
 
     @classmethod
     def default(
@@ -154,6 +155,7 @@ class SystemOpts(Struct):
         num_iterations: int = 1,
         corruption: float = 0,
         set_seed: int = 0,
+        source_chunk_size = 1028,
     ) -> Self:
         rtty = RTTYOpts(
             stop_bits=stop_bits,
@@ -205,5 +207,6 @@ class SystemOpts(Struct):
             error_correction=error_correction,
             num_iterations=num_iterations,
             corruption=corruption,
-            set_seed=set_seed
+            set_seed=set_seed,
+            source_chunk_size=source_chunk_size
         )

@@ -8,7 +8,7 @@ from rtty_sdr.core.baudot import encode
 import matplotlib.pyplot as plt
 import numpy as np
 
-opts = SystemOpts.default(initial_shift=Shift.LTRS)
+opts = SystemOpts.default(initial_shift=Shift.LTRS, pre_msg_stops=1)
 message = "HI"
 encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
@@ -24,7 +24,7 @@ snr = np.array([])
 signal = awgn(signal, 10)
 
 
-signal_source = MockSignalSource(signal, opts.decode)
+signal_source = MockSignalSource(signal, opts.source_chunk_size)
 goertzel = GoertzelEngine(opts.goertzel)
 
 while True:

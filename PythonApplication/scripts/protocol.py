@@ -36,7 +36,7 @@ signal = awgn(signal, 10)
 
 pill_queue: CommandsQueueQueue = queue.Queue()
 pills = CommandsQueue(pill_queue)
-signal_source = MockSignalSource(signal, opts.decode, None, pill_queue)
+signal_source = MockSignalSource(signal, opts.source_chunk_size, None, pill_queue)
 
 engine = GoertzelEngine(opts.goertzel)
 # engine = EnvelopeEngine(opts.envelope)

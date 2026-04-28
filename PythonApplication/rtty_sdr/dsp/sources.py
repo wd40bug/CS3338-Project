@@ -17,12 +17,12 @@ class MockSignalSource:
     def __init__(
         self,
         initial: npt.NDArray[np.float64],
-        opts: DecodeCommon,
+        chunk_size: int,
         data_queue: queue.Queue[npt.NDArray[np.float64]] | None = None,
         pill_queue: CommandsQueueQueue | None = None
     ):
         self.__buffer: npt.NDArray[np.float64] = initial
-        self.chunk_size: Final[int] = opts.chunk_size
+        self.chunk_size: Final[int] = chunk_size
         self.__queue: Final[queue.Queue[npt.NDArray[np.float64]] | None] = data_queue
         self.__pill_queue = pill_queue
 
@@ -58,14 +58,14 @@ class MicrophoneSource:
     __chunk_size: Final[int]
     __stream: sd.InputStream
 
-    def __init__(self, opts: DecodeCommon):
+    def __init__(self, opts: DecodeCommon, chunk_size: int):
         self.__sample_rate = opts.signal.Fs
-        self.__chunk_size = opts.chunk_size
+        self.__chunk_size = chunk_size
 
         # Initialize the input stream
         self.__stream = sd.InputStream(
             # channels=1,  # Mono
-            blocksize=self.__chunk_size,
+            blocksize=chunk_size,
             dtype="float32",
             latency='high'
         )

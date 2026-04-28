@@ -21,7 +21,7 @@ import queue
 
 from rtty_sdr.dsp.squelch import Squelch
 
-opts = SystemOpts.default(initial_shift=Shift.LTRS)
+opts = SystemOpts.default(initial_shift=Shift.LTRS, pre_msg_stops=2)
 message = "HI"
 encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
@@ -29,7 +29,7 @@ signal, t, annotations = internal_signal(encoded, opts.signal)
 signal = awgn(signal, 10)
 
 pill_queue: CommandsQueueQueue = queue.Queue()
-signal_source = MockSignalSource(signal, opts.decode, None, pill_queue)
+signal_source = MockSignalSource(signal, opts.source_chunk_size, None, pill_queue)
 pills = CommandsQueue(pill_queue)
 engine = GoertzelEngine(
     opts.goertzel

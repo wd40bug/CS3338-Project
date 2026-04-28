@@ -5,7 +5,7 @@ import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
 
-opts = SystemOpts.default(source="microphone")
+opts = SystemOpts.default(source="microphone", oversampling=2)
 
 source = MicrophoneSource(opts.decode)
 

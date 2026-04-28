@@ -23,8 +23,12 @@ class EnvelopeEngine(DemodulatorEngine):
     def __init__(self, opts: EnvelopeOpts):
         BW_one = 1.2 * 45.45
         signal_opts = opts.decode.signal
-        self.__mark = PeakFilter(signal_opts.Fs, signal_opts.rtty.mark, BW_one, opts.order)
-        self.__space = PeakFilter(signal_opts.Fs, signal_opts.rtty.space, BW_one, opts.order)
+        self.__mark = PeakFilter(
+            signal_opts.Fs, signal_opts.rtty.mark, BW_one, opts.order
+        )
+        self.__space = PeakFilter(
+            signal_opts.Fs, signal_opts.rtty.space, BW_one, opts.order
+        )
         self.__mark_env = Envelope(signal_opts, opts.envelopes_order)
         self.__space_env = Envelope(signal_opts, opts.envelopes_order)
         self.delay: Final[float] = self.__mark.delay + self.__mark_env.delay
@@ -44,19 +48,12 @@ class EnvelopeEngine(DemodulatorEngine):
 
 
 class GoertzelEngine(DemodulatorEngine):
-    opts: Final[SignalOpts]
-    overlap_size: Final[int]
-    dft_block_size: Final[int]
+    __opts: Final[GoertzelOpts]
     __overlap: npt.NDArray[np.float64]
 
-    def __init__(
-        self,
-        opts: GoertzelOpts
-    ):
-        self.opts = opts.decode.signal
-        self.overlap_size =  opts.overlap_size
-        self.dft_block_size = opts.dft_len
-        self.__overlap = np.zeros(self.overlap_size)
+    def __init__(self, opts: GoertzelOpts):
+        self.__opts = opts
+        self.__overlap = np.zeros(opts.overlap_size)
 
     @staticmethod
     def goertzel(
@@ -77,19 +74,36 @@ class GoertzelEngine(DemodulatorEngine):
         # 2. Return the RMS Power of the tone (A^2 / 2)
         return float((amplitude**2) / 2.0)
 
-    def process(
+    def __process(
         self, audio_chunk: npt.NDArray[np.float64]
     ) -> tuple[npt.NDArray[np.float64], None]:
         frame = np.concat((self.__overlap, audio_chunk))
 
         mark_power = GoertzelEngine.goertzel(
-            frame, self.opts.Fs, self.opts.rtty.mark, self.dft_block_size
+            frame,
+            self.__opts.decode.signal.Fs,
+            self.__opts.decode.signal.rtty.mark,
+            self.__opts.dft_len,
         )
         space_power = GoertzelEngine.goertzel(
-            frame, self.opts.Fs, self.opts.rtty.space, self.dft_block_size
+            frame,
+            self.__opts.decode.signal.Fs,
+            self.__opts.decode.signal.rtty.space,
+            self.__opts.dft_len,
         )
 
         # Update overlap
-        self.__overlap = frame[-self.overlap_size :]
+        self.__overlap = frame[-self.__opts.overlap_size :]
 
         return np.full(audio_chunk.shape, mark_power - space_power), None
+
+    def process(self, audio_chunk: npt.NDArray[np.float64]) -> tuple[npt.NDArray, None]:
+        ret = []
+        indices = np.arange(
+            self.__opts.decode.chunk_size,
+            len(audio_chunk),
+            self.__opts.decode.chunk_size,
+        )
+        for chunk in np.array_split(audio_chunk, indices):
+            ret.append(self.__process(chunk)[0])
+        return (np.concatenate(ret), None)

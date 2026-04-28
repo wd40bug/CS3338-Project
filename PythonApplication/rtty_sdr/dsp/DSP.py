@@ -56,10 +56,10 @@ class DspModule(multiprocessing.Process):
         status_callback: Callable[[Status], None],
     ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
         source = (
-            MicrophoneSource(opts=settings.decode)
+            MicrophoneSource(settings.decode, settings.source_chunk_size)
             if settings.source == "microphone"
             else MockSignalSource(
-                np.array([]), settings.decode, data_queue=static_data_queue
+                np.array([]), settings.source_chunk_size, data_queue=static_data_queue
             )
         )
         squelch = Squelch(opts=settings.squelch)
