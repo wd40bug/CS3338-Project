@@ -59,7 +59,7 @@ class DspModule(multiprocessing.Process):
             MicrophoneSource(opts=settings.decode)
             if settings.source == "microphone"
             else MockSignalSource(
-                np.array([]), settings.decode, queue=static_data_queue
+                np.array([]), settings.decode, data_queue=static_data_queue
             )
         )
         squelch = Squelch(opts=settings.squelch)

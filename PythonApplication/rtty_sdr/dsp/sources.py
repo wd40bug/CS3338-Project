@@ -64,7 +64,7 @@ class MicrophoneSource:
 
         # Initialize the input stream
         self.__stream = sd.InputStream(
-            channels=1,  # Mono
+            # channels=1,  # Mono
             blocksize=self.__chunk_size,
             dtype="float32",
             latency='high'
@@ -78,9 +78,9 @@ class MicrophoneSource:
             logger.warning("Audio buffer overflowed! Some data may be lost.")
 
         hardware_rate = self.__stream.samplerate
-        flat_data = data.flatten()
+        mono_data: npt.NDArray[np.float64] = np.mean(data, axis=1, dtype=np.float64) #type: ignore
 
-        resampled: npt.NDArray[np.float64] = scp.resample_poly(flat_data, up=self.__sample_rate, down=hardware_rate)
+        resampled: npt.NDArray[np.float64] = scp.resample_poly(mono_data, up=self.__sample_rate, down=hardware_rate)
 
         return resampled
 
