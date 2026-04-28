@@ -3,6 +3,7 @@ from rtty_sdr.core.options import SystemOpts
 from rtty_sdr.dsp.sources import MicrophoneSource
 import numpy as np
 import sounddevice as sd
+from scipy.io.wavfile import write
 
 opts = SystemOpts.default(source="microphone")
 
@@ -20,3 +21,4 @@ while time.time() - t0 < 10:
 data = np.concat(frames)
 sd.play(data, opts.signal.Fs)
 sd.wait()
+write("out.wav", opts.signal.Fs, data)
