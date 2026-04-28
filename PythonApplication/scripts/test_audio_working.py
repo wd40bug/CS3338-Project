@@ -12,10 +12,11 @@ t0 = time.time()
 
 frames = []
 
-while time.time() - t0 < 60:
+while time.time() - t0 < 10:
     chunk = source.read_chunk()
     if chunk is not None:
         frames.append(chunk)
 
 data = np.concat(frames)
 sd.play(data, opts.signal.Fs)
+sd.wait()
