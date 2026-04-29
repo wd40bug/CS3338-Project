@@ -38,22 +38,26 @@ class DspModule(multiprocessing.Process):
         super().__init__()
         self.__default_settings = default_settings
         self.__pubsub: PubSub | None = None
+        self.__signal: bool = False
 
-    def __status_callback(self, status: Status):
+    def __status_callback(self, status: Status, msg: str) -> None:
         match status:
             case "signal":
                 if self.__pubsub:
+                    self.__signal = True
                     self.__pubsub.publish(Receiving())
             case "signal_lost":
-                if self.__pubsub:
+                if self.__pubsub and self.__signal:
+                    self.__signal = False
                     self.__pubsub.publish(LostSignal())
+                    logger.trace(f"Signal Lost: {msg}")
 
     @staticmethod
     def __create_pipeline(
         settings: SystemOpts,
         commands_queue: CommandsQueueQueue,
         static_data_queue: queue.Queue[npt.NDArray[np.float64]],
-        status_callback: Callable[[Status], None],
+        status_callback: Callable[[Status, str], None],
     ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
         source = (
             MicrophoneSource(settings.decode, settings.source_chunk_size)
