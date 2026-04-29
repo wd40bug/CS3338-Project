@@ -182,7 +182,7 @@ class ProtocolDecode:
 
     def reset(self) -> None:
         self.__codes.clear()
-        self.__state = ProtocolState.Length
+        self.__state = ProtocolState.Phrase
         self.__shift = None
         self.__msg_len = 0
         self.__callsign = ""
@@ -199,7 +199,7 @@ type Status = Literal["signal", "signal_lost"]
 def protocol(
     code_generator: Iterable[DecodeYield],
     opts: BaudotOptions,
-    status_callback: Callable[[Status], None] | None = None,
+    status_callback: Callable[[Status, str], None] | None = None,
 ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
     protocol = ProtocolDecode(opts)
     debugs: list[DecodeDebug] = []
@@ -214,12 +214,12 @@ def protocol(
             protocol.reset()
             states.change(index, protocol.state)
             if status_callback:
-                status_callback("signal_lost")
+                status_callback("signal_lost", "Squelched")
             continue
         elif resp.kind == "command":
             if status_callback:
                 # All commands kill this pipeline, so the current message is lost
-                status_callback("signal_lost")
+                status_callback("signal_lost", "Closed")
             yield (
                 StoppedMsg(cmd=resp.command),
                 ProtocolDebug.create(debugs, states.build(index, protocol.state)),
@@ -229,8 +229,8 @@ def protocol(
         try:
             msg = protocol.update(code)
             states.change(index, protocol.state)
-            if len(protocol.codes) == 1 and status_callback:
-                status_callback("signal")
+            if len(protocol.codes) == len(phrase) and status_callback and protocol.state == ProtocolState.Length:
+                status_callback("signal", "Codephrase Received")
             if msg is not None:
                 logger.debug(f"Decoded message: {msg}")
                 yield (
@@ -244,7 +244,7 @@ def protocol(
         except RuntimeError as e:
             logger.warning(f"{e}: Resetting protocol")
             if status_callback:
-                status_callback("signal_lost")
+                status_callback("signal_lost", "Error")
             protocol.reset()
             states.change(index, protocol.state)
 
