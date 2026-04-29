@@ -88,6 +88,7 @@ class ProtocolDecode:
             case ProtocolState.Phrase:
                 if len(self.__codes) == len(phrase):
                     if self.__codes == list(phrase):
+                        logger.trace(f"Found phrase: {self.__codes}")
                         self.__state = ProtocolState.Length
                     else:
                         raise RuntimeError(
@@ -118,13 +119,15 @@ class ProtocolDecode:
 
                 if len(self.__codes) == (LengthLen * LengthDuplicates) + len(phrase):
                     length = QMR(
-                        map(
-                            lambda b: (b[0], b[1]),
-                            batched(self.__codes[len(phrase) :], LengthLen),
-                        )
+                        [
+                            (self.__codes[i], self.__codes[i + 1])
+                            for i in range(len(phrase), len(self.__codes), LengthLen)
+                        ]
                     )
                     self.__msg_len = length
-                    logger.debug(f"Found msg with length: {length}, from codes: {self.__codes[len(phrase ):]}")
+                    logger.debug(
+                        f"Found msg with length: {length}, from codes: {self.__codes[len(phrase) :]}"
+                    )
                     if length > 0:
                         self.__state = ProtocolState.Message
                     else:
@@ -133,7 +136,7 @@ class ProtocolDecode:
                 if len(self.__codes) == self.__msg_len + (
                     LengthLen * LengthDuplicates
                 ) + len(phrase):
-                    msg_codes = self.__codes[-self.__msg_len:]
+                    msg_codes = self.__codes[-self.__msg_len :]
                     try:
                         msg, _ = decode(msg_codes, self.__opts)
                         logger.trace(f"Receiving message with msg '{msg}'")
@@ -167,10 +170,12 @@ class ProtocolDecode:
                 self.__callsign += char
                 if len(self.__callsign) == CallsignLen:
                     if self.__skip:
-                        local_baudot = replace(self.__opts, replace_invalid_with="\uFFFD")
+                        local_baudot = replace(
+                            self.__opts, replace_invalid_with="\ufffd"
+                        )
                     else:
                         local_baudot = self.__opts
-                    msg_codes = self.__codes[MsgStart:MsgStart + self.__msg_len]
+                    msg_codes = self.__codes[MsgStart : MsgStart + self.__msg_len]
                     msg, _ = decode(msg_codes, local_baudot)
                     return RecvMessage.create(
                         msg,
