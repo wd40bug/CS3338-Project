@@ -19,7 +19,6 @@ from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.commands import Command
 from rtty_sdr.dsp.decode import DecodeDebug, DecodeYield
 from rtty_sdr.core.protocol import phrase
-from itertools import batched
 
 
 class ProtocolState(IntEnum):
@@ -91,9 +90,8 @@ class ProtocolDecode:
                         logger.trace(f"Found phrase: {self.__codes}")
                         self.__state = ProtocolState.Length
                     else:
-                        raise RuntimeError(
-                            f"Did not encounter code phrase ({phrase}). Encountered {self.__codes}"
-                        )
+                        logger.trace(f"Did not encounter code phrase {phrase}, found {self.__codes}")
+                        self.__codes.pop(0)
             case ProtocolState.Length:
 
                 def QMR(nums: Iterable[tuple[int, int]]) -> int:
