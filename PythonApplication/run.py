@@ -53,7 +53,7 @@ if __name__ == "__main__":
     time.sleep(1)
 
     try:
-        retcode = ui.run(reload=False, title="RTTY Chat", dark=False, port=8080)
+        retcode = ui.run(reload=False, title="RTTY Chat", dark=False, port=8000)
     except KeyboardInterrupt:
         retcode = 1
         pubsub = PubSub(module_name="Keyboard interrupt shutdown")

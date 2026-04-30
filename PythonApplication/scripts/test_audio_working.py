@@ -7,7 +7,7 @@ from scipy.io.wavfile import write
 
 opts = SystemOpts.default(source="microphone", oversampling=2)
 
-source = MicrophoneSource(opts.decode)
+source = MicrophoneSource(opts.decode, opts.source_chunk_size)
 
 t0 = time.time()
 

@@ -65,7 +65,6 @@ propcache==0.4.1
 proxy_tools==0.1.0
 pudb==2025.1.5
 py-spy==0.4.1
-pycairo==1.29.0
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -96,8 +95,6 @@ QtPy==2.4.3
 rich==14.3.3
 ruff==0.15.7
 scipy==1.17.1
-shiboken2==5.13.2
-shiboken6==6.11.0
 simple-websocket==1.1.0
 six==1.17.0
 sounddevice==0.5.5
