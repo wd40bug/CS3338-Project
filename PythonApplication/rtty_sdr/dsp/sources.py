@@ -4,7 +4,6 @@ import numpy as np
 import numpy.typing as npt
 import sounddevice as sd
 import queue
-import scipy.signal as scp
 
 from rtty_sdr.core.options import DecodeCommon
 from rtty_sdr.dsp.commands import CommandsQueueQueue, FullStopCommand
@@ -62,9 +61,9 @@ class MicrophoneSource:
         self.__sample_rate = opts.signal.Fs
         self.__chunk_size = chunk_size
 
-        # Initialize the input stream
         self.__stream = sd.InputStream(
-            # channels=1,  # Mono
+            samplerate=self.__sample_rate,
+            channels=1,
             blocksize=chunk_size,
             dtype="float32",
             latency='high'
@@ -77,12 +76,10 @@ class MicrophoneSource:
         if overflowed:
             logger.warning("Audio buffer overflowed! Some data may be lost.")
 
-        hardware_rate = self.__stream.samplerate
-        mono_data: npt.NDArray[np.float64] = np.mean(data, axis=1, dtype=np.float64) #type: ignore
+        if data is None or len(data) == 0:
+            return None
 
-        resampled: npt.NDArray[np.float64] = scp.resample_poly(mono_data, up=self.__sample_rate, down=hardware_rate)
-
-        return resampled
+        return data.flatten().astype(np.float64)
 
     def __del__(self) -> None:
         self.__stream.stop()
