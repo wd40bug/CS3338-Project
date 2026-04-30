@@ -22,9 +22,12 @@ import sys
 from rtty_sdr.dsp.sources import MicrophoneSource
 import queue
 
-opts = SystemOpts.default(engine="envelope")
+logger.remove()
+logger.add(sys.stderr, level="TRACE")
 
-source = MicrophoneSource(opts.decode)
+opts = SystemOpts.default()
+
+source = MicrophoneSource(opts.decode, opts.source_chunk_size)
 engine = GoertzelEngine(opts.goertzel)
 
 annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
@@ -36,7 +39,8 @@ squelch = Squelch(opts.squelch)
 num_msgs = 2
 
 pill_queue: CommandsQueueQueue = queue.Queue()
-t = threading.Timer(20, lambda: pill_queue.put(FullStopCommand()))
+t = threading.Timer(30, lambda: pill_queue.put(FullStopCommand()))
+ms = threading.Timer(5, lambda: logger.info("Start sending now"))
 
 generator = decode_stream(
     source,
@@ -48,12 +52,14 @@ generator = decode_stream(
 
 num_received = 0
 
+ms.start()
 t.start()
 
 messages_received: list[RecvMessage | StoppedMsg] = []
 debugs: list[ProtocolDebug] = []
 for received, debug in protocol(generator, opts.baudot):
     messages_received.append(received)
+    debugs.append(debug)
     if isinstance(received, RecvMessage):
         logger.info(f"Received message: '{received.msg}'")
     t.cancel()
