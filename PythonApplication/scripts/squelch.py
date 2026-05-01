@@ -18,7 +18,7 @@ signal, t, annotations = internal_signal(encoded, opts.signal, 0.2)
 
 signal = awgn(signal, 5)
 
-signal_source = MockSignalSource(signal, opts.decode)
+signal_source = MockSignalSource(signal, opts.source_chunk_size)
 squelch = Squelch(opts.squelch)
 
 sqs = np.array([])
@@ -49,4 +49,5 @@ axs[1].set_title("Calculated SNR")
 plot_shaded_squelch(t, axs[1], sqs)
 line(axs[1], 'y', [opts.squelch.upper_thresh], 'Upper Threshold', color='r')
 line(axs[1], 'y', [opts.squelch.lower_thresh], 'Lower Threshold', color='r')
+plt.legend()
 plt.show()

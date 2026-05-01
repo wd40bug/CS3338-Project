@@ -243,6 +243,8 @@ def tokens_to_codes_with_shift(pred_tokens, inv_tokenizer, initial_shift):
 def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
     tokens = []
     shift = initial_shift
+    corrections_0 = [1 << i for i in range(0, RTTYOpts.data_bits)]
+    corrections_5 = [5 | 1 << i for i in range(0, RTTYOpts.data_bits) if 1 << i != 5]
 
     for code in codes:
         # Handle shift codes directly
@@ -250,6 +252,11 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
             shift = Shift(code)
             tokens.append(tokenizer[shift.name])  # "LTRS" or "FIGS"
             continue
+        # Invalid code correction
+        elif code == 0:
+            code = random.choice(corrections_0)
+        elif code == 5 and shift == Shift.FIGS:
+            code = random.choice(corrections_5)
 
         # Decode based on current shift
         if shift == Shift.LTRS:
@@ -267,12 +274,7 @@ def codes_to_tokens_with_shift(codes, tokenizer, initial_shift):
 
 def error_correction(in_codes: list[int], model, initial_shift, debug=False):
     # Find invalid codes (0,5) and replaces with one of the closest valid characters (one bit flipped)
-    corrections_0 = [1 << i for i in range(0, RTTYOpts.data_bits)]
-    corrections_5 = [5 | 1 << i for i in range(0, RTTYOpts.data_bits) if 1 << i != 5]
-    in_codes = [
-        random.choice(corrections_0) if code == 0 else random.choice(corrections_5) if code == 5 else code
-        for code in in_codes
-    ] + [LTRS_Map[' '], LTRS_Map['A']]
+    in_codes = in_codes + [LTRS_Map[' '], LTRS_Map['A']]
     tokenizer = {c: i for i, c in enumerate(RTTY_Chars)}
     inv_tokenizer = {i: c for c, i in tokenizer.items()}
 

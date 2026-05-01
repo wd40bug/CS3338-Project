@@ -8,7 +8,7 @@ from rtty_sdr.core.baudot import encode
 import matplotlib.pyplot as plt
 import numpy as np
 
-opts = SystemOpts.default(initial_shift=Shift.LTRS, pre_msg_stops=1)
+opts = SystemOpts.default(initial_shift=Shift.LTRS, pre_msg_stops=1, overlap_ratio=1)
 message = "HI"
 encoded, _ = encode(message, opts.baudot)
 signal, t, annotations = internal_signal(encoded, opts.signal)
