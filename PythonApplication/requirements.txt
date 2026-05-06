@@ -108,7 +108,6 @@ uc-micro-py==2.0.0
 urwid==4.0.0
 urwid_readline==0.15.1
 uvicorn==0.44.0
-uvloop==0.22.1
 watchfiles==1.1.1
 wcwidth==0.6.0
 websockets==16.0
