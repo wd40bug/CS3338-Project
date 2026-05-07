@@ -71,6 +71,7 @@ class GoertzelOpts(Struct):
 class EnvelopeOpts(Struct):
     order: int
     envelopes_order: int
+    envelopes_margin: float
     decode: DecodeCommon
 
 
@@ -80,6 +81,7 @@ class SquelchOpts(Struct):
     order: int
     envelopes_order: int
     bw_safety_margin: float
+    envelope_margin: float
     decode: DecodeCommon
 
 
@@ -135,12 +137,14 @@ class SystemOpts(Struct):
         oversampling: int = 5,
         envelope_generator_order: int = 4,
         envelope_generator_envelopes_order: int = 4,
+        envelope_generator_envelopes_margin: float = 1.5,
         overlap_ratio: float = 0.5,
         dft_len: int = 256,
         lower_thresh: float = 0.2,
         upper_thresh: float = 2,
         squelch_order: int = 4,
         squelch_envelopes_order: int = 4,
+        squelch_envelope_margin: float = 1,
         bw_safety_margin: float = 2,
         squelch_grace_percent: float = 0.25,
         idle_bits: float = 2,
@@ -179,6 +183,7 @@ class SystemOpts(Struct):
                 envelopes_order=envelope_generator_envelopes_order,
                 decode=decode,
                 order=envelope_generator_order,
+                envelopes_margin=envelope_generator_envelopes_margin
             ),
             goertzel=GoertzelOpts(
                 overlap_ratio=overlap_ratio, dft_len=dft_len, decode=decode
@@ -190,6 +195,7 @@ class SystemOpts(Struct):
                 order=squelch_order,
                 envelopes_order=squelch_envelopes_order,
                 bw_safety_margin=bw_safety_margin,
+                envelope_margin=squelch_envelope_margin
             ),
             stream=DecodeStreamOpts(
                 squelch_grace_percent=squelch_grace_percent,

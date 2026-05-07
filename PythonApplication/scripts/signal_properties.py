@@ -7,7 +7,7 @@ from rtty_sdr.debug.internal_signal import internal_signal
 from rtty_sdr.core.baudot import encode
 
 
-opts = SystemOpts.default(mark=50, shift=50, baud=10, initial_shift=Shift.LTRS)
+opts = SystemOpts.default(mark=50, shift=50, baud=10, initial_shift=Shift.LTRS, pre_msg_stops=2)
 Fs = opts.signal.Fs
 
 rtty = opts.rtty

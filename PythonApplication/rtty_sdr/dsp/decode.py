@@ -1,7 +1,6 @@
 from enum import IntEnum, auto
-from typing import Annotated, Callable, Literal, Iterator, Iterable
+from typing import Annotated, ClassVar, Literal, Iterator, Iterable, Type, cast
 
-from loguru import logger
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
@@ -10,11 +9,11 @@ from pydantic import BaseModel, Field
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.commands import Command, Commands
 from rtty_sdr.dsp.sources import AudioSource
-from rtty_sdr.dsp.engines import DemodulatorEngine
+from rtty_sdr.dsp.engines import DemodulatorEngine, EnvelopeEngineDebug, GoertzelDebug
 from rtty_sdr.core.options import DecodeStreamOpts
-from rtty_sdr.dsp.squelch import Squelch
+from rtty_sdr.dsp.squelch import Squelch, SquelchDebug
 from rtty_sdr.debug.annotations import DebugAnnotations
-from rtty_sdr.debug.debug_types import DebugCombineable
+from rtty_sdr.debug.debug_types import DebugCombineable, DebugSliceable
 import time
 from typing import Self
 
@@ -59,7 +58,7 @@ def decode_stream(
     state: DecodeState = DecodeState.NO_SIGNAL
     current_word: list[bool] = []
 
-    builder = DecodeDebugBuilder(state)
+    builder = DecodeDebugBuilder(state, engine.debug_t)
 
     squelch_count = 0
     idle_len = 0
@@ -78,12 +77,14 @@ def decode_stream(
             time.sleep(opts.none_friction)
             continue
 
-        filtered_audio, squelch_arr, _ = squelch.process(raw_audio)
+        filtered_audio, squelch_arr, sq_debug = squelch.process(raw_audio)
 
-        samples, _ = engine.process(filtered_audio)
+        samples, engine_debug = engine.process(filtered_audio)
 
         # Give the chunk to the builder
-        builder.load_frame(raw_audio, samples, squelch_arr)
+        builder.load_frame(
+            raw_audio, filtered_audio, samples, squelch_arr, sq_debug, engine_debug
+        )
 
         for i, (sample, sq) in enumerate(zip(samples, squelch_arr)):
             if countdown is not None and countdown > 0:
@@ -142,60 +143,83 @@ def decode_stream(
 
 
 @dataclass(frozen=True)
-class DecodeDebug(DebugCombineable):
+class DecodeDebug[T: DebugSliceable]:
     indices: npt.NDArray[np.int_]
     signal: npt.NDArray[np.float64]
+    filtered: npt.NDArray[np.float64]
     envelope: npt.NDArray[np.float64]
     squelch: npt.NDArray[np.int_]
+    squelch_debug: SquelchDebug
+    engine_debug: T
     annotations: DebugAnnotations
     states: list[DecodeState]
     len: int
 
     @classmethod
-    def combine(cls, debugs: Iterable[Self]) -> Self:
+    def default(cls, t: Type[T]) -> Self:
+        return cls(
+            np.array([]),
+            np.array([]),
+            np.array([]),
+            np.array([]),
+            np.array([]),
+            SquelchDebug.default(),
+            t.default(),
+            DebugAnnotations.default(),
+            [],
+            0,
+        )
+
+    @classmethod
+    def combine(cls, debugs: Iterable[Self], t: Type[T]) -> Self:
         debug_list = list(debugs)
 
         if not debug_list:
-            # Return an empty instance if the iterable is empty
-            return cls(
-                np.array([]),
-                np.array([]),
-                np.array([]),
-                np.array([]),
-                DebugAnnotations(np.array([]), np.array([]), np.array([])),
-                [],
-                0,
-            )
+            return cls.default(t)
 
-        # Concat the arrays
         return cls(
             indices=np.concatenate([d.indices for d in debug_list]),
             signal=np.concatenate([d.signal for d in debug_list]),
+            filtered=np.concatenate([d.filtered for d in debug_list]),
             envelope=np.concatenate([d.envelope for d in debug_list]),
             squelch=np.concatenate([d.squelch for d in debug_list]),
+            squelch_debug=SquelchDebug.combine([d.squelch_debug for d in debug_list]),
+            engine_debug=cast(
+                T, t.combine([d.engine_debug for d in debug_list])
+            ),
             annotations=DebugAnnotations.combine([d.annotations for d in debug_list]),
             states=[state for d in debugs for state in d.states],
             len=sum([d.len for d in debug_list]),
         )
 
-
 @dataclass
-class StreamData:
+class StreamData[T: DebugSliceable]:
     signal: npt.NDArray[np.float64]
+    filtered: npt.NDArray[np.float64]
     envelope: npt.NDArray[np.float64]
     squelch: npt.NDArray[np.int_]
+    squelch_debug: SquelchDebug
+    engine_debug: T
 
     def __len__(self) -> int:
         return len(self.signal)
 
     def __getitem__(self, key: slice | int) -> Self:
-        return self.__class__(self.signal[key], self.envelope[key], self.squelch[key])
+        return self.__class__(
+            self.signal[key],
+            self.filtered[key],
+            self.envelope[key],
+            self.squelch[key],
+            self.squelch_debug[key],
+            self.engine_debug[key],
+        )
 
 
-class DecodeDebugBuilder:
-    def __init__(self, default_state: DecodeState) -> None:
+class DecodeDebugBuilder[T: DebugSliceable]:
+    def __init__(self, default_state: DecodeState, engine_t: Type[T]) -> None:
         self.__start_index: int = 0
-        self.__accumulated_data: list[StreamData] = []
+        self.__accumulated_data: list[StreamData[T]] = []
+        self.__engine_debug_t = engine_t
 
         # Annotations
         self.__start_bit: int | None = None
@@ -210,12 +234,17 @@ class DecodeDebugBuilder:
     def load_frame(
         self,
         signal: npt.NDArray[np.float64],
+        filtered: npt.NDArray[np.float64],
         envelope: npt.NDArray[np.float64],
         squelch: npt.NDArray[np.int_],
+        squelch_debug: SquelchDebug,
+        engine_debug: T,
     ) -> None:
         assert self.__frame_data is None, "Previous frame was not committed!"
         self.__frame_consumed = 0
-        self.__frame_data = StreamData(signal, envelope, squelch)
+        self.__frame_data = StreamData(
+            signal, filtered, envelope, squelch, squelch_debug, engine_debug
+        )
 
     def start_bit(self, i: int) -> None:
         self.__start_bit = self.__frame_index + i
@@ -266,19 +295,39 @@ class DecodeDebugBuilder:
             if self.__accumulated_data
             else np.array([])
         )
+        filtered_arr = (
+            np.concatenate([d.filtered for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else np.array([])
+        )
+
+        squelch_debug_combined = (
+            SquelchDebug.combine([d.squelch_debug for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else SquelchDebug.default()
+        )
+
+        envelope_debug_combined = (
+            self.__engine_debug_t.combine([d.engine_debug for d in self.__accumulated_data])
+            if self.__accumulated_data
+            else self.__engine_debug_t.default()
+        )
 
         ret = DecodeDebug(
             np.arange(self.__start_index, self.__frame_index + i + 1),
             signal_arr,
+            filtered_arr,
             envelope_arr,
             squelch_arr,
+            squelch_debug_combined,
+            envelope_debug_combined, # type: ignore
             DebugAnnotations(
                 start_bits,
                 np.array([i + self.__frame_index]) if stop_bit else np.array([]),
                 np.array(self.__data_bits),
             ),
             self.__state_changes.build(i + self.__frame_index, state),
-            len(signal_arr)
+            len(signal_arr),
         )
         assert (
             len(ret.indices)

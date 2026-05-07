@@ -8,11 +8,8 @@ from rtty_sdr.comms.messages import Shutdown
 from rtty_sdr.controller.controller import ControllerModule
 import sys
 import time
-from typing import Final, Deque
-import collections
 
 from loguru import logger
-import loguru
 
 from rtty_sdr.comms.broker import BrokerModule
 from rtty_sdr.controller.controller import ControllerModule

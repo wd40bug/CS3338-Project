@@ -3,4 +3,15 @@ from typing import Protocol, Self
 class DebugCombineable(Protocol):
     @classmethod
     def combine(cls, debugs: list[Self]) -> Self:
-        return cls.combine(debugs)
+        ...
+
+    @classmethod
+    def default(cls) -> Self:
+        ...
+
+class DebugSliceable(DebugCombineable):
+    def __getitem__(self, key: slice | int) -> Self:
+        ...
+
+    def __len__(self) -> int:
+        ...

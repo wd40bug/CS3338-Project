@@ -4,7 +4,7 @@ from rtty_sdr.debug.filter_response import plot_freq_response
 
 Fs = 8000
 
-BW_total = 2 * 170 + 2 * 45.45
+BW_total = 170 + 45.45
 BW_one = 1.2 * 45.45
 
 both = PeakFilter(Fs, (2125 + 2295) / 2, BW_total, 4)
@@ -17,15 +17,16 @@ plot_freq_response(fig.axes[0], both,[("Mark", 2125), ("Space", 2295)])
 plt.grid(True)
 plt.ylim(top=50)
 
-fig, ax = plt.subplots()
-plot_freq_response(fig.axes[0], mark, [("Space", 2295)], center_name="Mark")
-plt.grid(True)
-plt.ylim(top=50)
 
-fig, ax = plt.subplots()
-plot_freq_response(fig.axes[0], space, [("Mark", 2125)], center_name="Space")
-plt.grid(True)
-plt.ylim(top=50)
+
+fig, axs = plt.subplots(2, 1)
+plot_freq_response(axs[0], mark, [("Space", 2295)], center_name="Mark")
+axs[0].grid(True)
+axs[0].set_ylim(top=50)
+
+plot_freq_response(axs[1], space, [("Mark", 2125)], center_name="Space")
+axs[1].grid(True)
+axs[1].set_ylim(top=50)
 
 fig, ax = plt.subplots()
 plot_freq_response(ax, envelope, [("Cutoff", 45.45 * 1.5)])

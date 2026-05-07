@@ -76,7 +76,7 @@ class DspModule(multiprocessing.Process):
         decode = decode_stream(
             source, squelch, engine, settings.stream, commands
         )
-        return protocol(decode, settings.baudot, status_callback)
+        return protocol(decode, settings.baudot, engine.debug_t,status_callback)
 
     @catch_and_broadcast
     def run(self) -> None:

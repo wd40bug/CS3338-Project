@@ -1,4 +1,4 @@
-from typing import Literal, Self
+from typing import Literal, Self, Type
 from copy import replace
 from enum import IntEnum, auto
 from typing import Callable
@@ -15,6 +15,7 @@ from rtty_sdr.core.protocol import (
     MsgStart,
     RecvMessage,
 )
+from rtty_sdr.debug.debug_types import DebugSliceable
 from rtty_sdr.debug.state_changes import StateChanges
 from rtty_sdr.dsp.commands import Command
 from rtty_sdr.dsp.decode import DecodeDebug, DecodeYield
@@ -34,17 +35,17 @@ class ProtocolDebug(msgspec.Struct, frozen=True):
     states: list[ProtocolState]
 
     @classmethod
-    def create(cls, decode: list[DecodeDebug], states: list[ProtocolState]) -> Self:
-        decode_debug = DecodeDebug.combine(decode)
+    def create(cls, decode: list[DecodeDebug], states: list[ProtocolState], t: Type[DebugSliceable]) -> Self:
+        decode_debug = DecodeDebug.combine(decode, t)
         assert decode_debug.len == len(states), (
             f"Decode len: {decode_debug.len} and states len {len(states)} don't match"
         )
         return cls(decode=decode_debug, states=states)
 
     @classmethod
-    def combine(cls, debugs: list[Self]) -> Self:
+    def combine(cls, debugs: list[Self], t: Type[DebugSliceable]) -> Self:
         return cls(
-            decode=DecodeDebug.combine([d.decode for d in debugs]),
+            decode=DecodeDebug.combine([d.decode for d in debugs], t),
             states=[state for d in debugs for state in d.states],
         )
 
@@ -202,6 +203,7 @@ type Status = Literal["signal", "signal_lost"]
 def protocol(
     code_generator: Iterable[DecodeYield],
     opts: BaudotOptions,
+    t: Type[DebugSliceable],
     status_callback: Callable[[Status, str], None] | None = None,
 ) -> Iterator[tuple[RecvMessage | StoppedMsg, ProtocolDebug]]:
     protocol = ProtocolDecode(opts)
@@ -225,7 +227,7 @@ def protocol(
                 status_callback("signal_lost", "Closed")
             yield (
                 StoppedMsg(cmd=resp.command),
-                ProtocolDebug.create(debugs, states.build(index, protocol.state)),
+                ProtocolDebug.create(debugs, states.build(index, protocol.state), t),
             )
             return
         code = resp.code
@@ -238,7 +240,7 @@ def protocol(
                 logger.debug(f"Decoded message: {msg}")
                 yield (
                     msg,
-                    ProtocolDebug.create(debugs, states.build(index, protocol.state)),
+                    ProtocolDebug.create(debugs, states.build(index, protocol.state), t),
                 )
                 protocol.reset()
                 debugs.clear()

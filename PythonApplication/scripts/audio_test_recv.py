@@ -30,7 +30,6 @@ opts = SystemOpts.default()
 source = MicrophoneSource(opts.decode, opts.source_chunk_size)
 engine = GoertzelEngine(opts.goertzel)
 
-annotations = DebugAnnotations(np.array([]), np.array([]), np.array([]))
 envelope: npt.NDArray[np.float64] = np.array([])
 indices: npt.NDArray[np.int_] = np.array([])
 

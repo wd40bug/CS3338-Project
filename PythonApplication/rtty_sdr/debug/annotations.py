@@ -65,12 +65,16 @@ class DebugAnnotations(DebugCombineable):
         line(ax, "x", stops, "Stop", color="black", linestyle="--")
 
     @classmethod
+    def default(cls) -> Self:
+        return cls(np.array([]), np.array([]), np.array([]))
+
+    @classmethod
     def combine(cls, debugs: Iterable[Self]) -> Self:
         debug_list = list(debugs)
 
         if not debug_list:
+            return cls.default()
             # Return an empty instance if the iterable is empty
-            return cls(np.array([]), np.array([]), np.array([]))
         return cls(
             start_bits=np.concatenate([d.start_bits for d in debugs]),
             stop_bits=np.concatenate([d.stop_bits for d in debugs]),

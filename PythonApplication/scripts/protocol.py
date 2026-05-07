@@ -55,7 +55,7 @@ generator = decode_stream(
     pills,
 )
 
-for received, debug in protocol(generator, opts.baudot):
+for received, debug in protocol(generator, opts.baudot, engine.debug_t):
     if isinstance(received, RecvMessage):
         logger.info(f"Received: {received}")
 
