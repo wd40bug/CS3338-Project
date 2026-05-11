@@ -7,7 +7,7 @@ from rtty_sdr.debug.internal_signal import internal_signal
 from rtty_sdr.core.baudot import encode
 
 
-opts = SystemOpts.default(mark=50, shift=50, baud=10, initial_shift=Shift.LTRS, pre_msg_stops=2)
+opts = SystemOpts.default(mark=2125, shift=170, baud=45.45, initial_shift=Shift.LTRS, pre_msg_stops=1)
 Fs = opts.signal.Fs
 
 rtty = opts.rtty
@@ -15,7 +15,7 @@ message = "HI"
 
 encoded, _ = encode(message, opts.baudot)
 
-signal, t, annotations = internal_signal(encoded, opts.signal, 0.1)
+signal, t, annotations = internal_signal(encoded, opts.signal, 0.0)
 
 fig = plt.figure()
 plt.plot(t, signal)

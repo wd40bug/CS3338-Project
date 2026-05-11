@@ -1,3 +1,4 @@
+from typing import Any
 from loguru import logger
 import queue
 import sys
@@ -38,9 +39,33 @@ logger.info(
     f"Read {len(raw_signal)} samples at {Fs} samples/s ({(1 / Fs) * len(raw_signal)}s)"
 )
 
-with open(file_path.with_stem(f"settings-{file_path.stem}").with_suffix(".json"), "r") as f:
-    decode = msgspec.json.Decoder(type=SystemOpts)
-    opts = decode.decode(f.read())
+def merge_dicts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    merged = right.copy()
+    for key, value in left.items():
+        if (key in merged and isinstance(merged[key], dict) and isinstance(value, dict)):
+            merged[key] = merge_dicts(value, merged[key])
+        else:
+            merged[key] = value
+
+    return merged
+
+
+def get_opts() -> SystemOpts:
+    with open(file_path.with_stem(f"settings-{file_path.stem}").with_suffix(".json"), "r") as f:
+        try:
+            opts_dict = msgspec.json.decode(f.read())
+        except msgspec.DecodeError:
+            return SystemOpts.default()
+
+        default_dict = msgspec.to_builtins(SystemOpts.default())
+
+        merged_dict = merge_dicts(opts_dict, default_dict)
+        try:
+            return msgspec.convert(merged_dict, type=SystemOpts)
+        except msgspec.ValidationError:
+            return SystemOpts.default()
+        
+opts = get_opts()
 
 assert Fs == opts.signal.Fs, (
     f"Sampling rates for the settings file do not match: {Fs} for the wav, {opts.signal.Fs} for the settings file"
